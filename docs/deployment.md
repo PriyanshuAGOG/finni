@@ -44,6 +44,9 @@ Copy `.env.example`, fill in `DATABASE_URL`, `MIGRATION_DATABASE_URL`, `ENCRYPTI
 
 **Vercel**: connect the repo, set the environment variables above in Project Settings, deploy. `next build` runs `tsc` as part of the type-check step, so a broken build fails the deploy rather than shipping.
 
+> **Troubleshooting: "No Output Directory named 'public' found after the Build completed."**
+> This means the project isn't being built with Vercel's Next.js framework preset — it's falling back to the static-site builder, which expects a `public/` directory of pre-built HTML. It typically happens when a project was previously configured for a static site (or the Output Directory was manually overridden) before this app existed at the repo root. The repo's `vercel.json` sets `"framework": "nextjs"` to steer this correctly, but a manual override in the dashboard takes precedence over `vercel.json`. If the error persists after redeploying: go to **Project Settings → General → Build & Development Settings**, set **Framework Preset** to **Next.js**, and make sure **Output Directory** has no manual override enabled (leave it on the framework default rather than `public`).
+
 **Other Node hosts**: `npm run build && npm run start` (serves on `PORT`, default 3000).
 
 ## 4. Deploy the worker
