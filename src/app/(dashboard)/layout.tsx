@@ -3,6 +3,17 @@ import { redirect } from 'next/navigation';
 import { getSessionContext } from '../lib/session';
 import { signOutAction } from '../actions/auth';
 
+/**
+ * Every dashboard page reads the live database on every request (source
+ * lists, review state, audit logs) -- there is nothing here that should
+ * ever be baked into a static build output. Forcing dynamic rendering at
+ * the layout level, rather than relying on Next.js inferring it from a
+ * `cookies()` call somewhere downstream, means a build never attempts to
+ * prerender this subtree, regardless of what order code inside a given
+ * page happens to run in.
+ */
+export const dynamic = 'force-dynamic';
+
 const NAV = [
   { href: '/', label: 'Home' },
   { href: '/inbox', label: 'Research Inbox' },

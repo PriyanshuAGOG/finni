@@ -3,6 +3,10 @@ import { registerOperations } from '../../../../api/operations';
 
 registerOperations();
 
+// Every request needs a live database and per-request auth context;
+// nothing here is cacheable or prerenderable at build time.
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   return handleApiRequest(request);
 }

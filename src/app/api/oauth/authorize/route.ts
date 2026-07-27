@@ -3,6 +3,11 @@ import { withoutOrg } from '../../../../lib/db';
 import { createAuthorizationCode } from '../../../../services/auth';
 import { isScope } from '../../../../domain/permissions';
 
+// A GET route handler with no dynamic-API usage can be evaluated once at
+// build time in the App Router; this one needs a live session and
+// database lookup on every call, so it must never be treated as static.
+export const dynamic = 'force-dynamic';
+
 /**
  * OAuth 2.0 authorization endpoint (with PKCE).
  *
