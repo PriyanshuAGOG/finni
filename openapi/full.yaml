@@ -860,7 +860,7 @@ paths:
         and its metadata.
 
 
-        This operation writes. The created source is unreviewed.
+        This operation writes. The created source is approved immediately.
       tags:
         - sources
         - ingestion
@@ -1397,8 +1397,9 @@ paths:
         user merely mentioned.
 
 
-        The newly created source is NOT approved. It enters the Research Inbox as needs_review, and
-        you must say so rather than implying it is now organizational evidence.
+        The newly created source is approved immediately -- this deployment has no review queue.
+        Extraction confidence and any extraction warnings still travel with the record, so mention
+        them if they're present.
 
 
         If a duplicate exists this returns DUPLICATE_SOURCE with the existing record; tell the user
@@ -1544,7 +1545,7 @@ paths:
 
 
         Defaults to returning the existing record for duplicates rather than failing the whole
-        batch. All created sources are unreviewed.
+        batch. All created sources are approved immediately.
 
 
         This operation writes. Batch size is capped by configuration.
@@ -1646,7 +1647,7 @@ paths:
         in the library the existing record is returned and nothing new is created.
 
 
-        This operation writes. The created source is unreviewed.
+        This operation writes. The created source is approved immediately.
       tags:
         - sources
         - ingestion
@@ -7545,7 +7546,7 @@ paths:
         creating a copy.
 
 
-        This operation writes. The created source is unreviewed.
+        This operation writes. The created source is approved immediately.
       tags:
         - sources
         - ingestion

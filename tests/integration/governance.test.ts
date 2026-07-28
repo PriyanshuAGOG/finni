@@ -163,24 +163,39 @@ describe('permanent deletion', () => {
 });
 
 describe('review status transitions', () => {
+  it('creates a source approved immediately, with no review queue', async () => {
+    const source = await createManualSource(org.adminCtx, {
+      title: 'Source approved on creation',
+      text: 'A qualitative interview study explored barriers to attending follow-up appointments among rural patients.',
+    });
+    expect(source.review_status).toBe('approved');
+  });
+
   it('requires a reason to reject a source', async () => {
     const source = await createManualSource(org.adminCtx, {
       title: 'Source for rejection reason test',
       text: 'A wearable step-counter validation study compared consumer devices against a research-grade accelerometer.',
     });
+    // A source is born approved now, and approved cannot go straight to
+    // rejected (it must be demoted first) -- the same deliberate two-step
+    // that already applied to demoting from approved before this change.
+    await changeReviewStatus(org.adminCtx, source.source_id, { status: 'needs_review' });
     await expect(
       changeReviewStatus(org.adminCtx, source.source_id, { status: 'rejected' }),
     ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 
-  it('refuses an approval while the source is still processing', async () => {
+  it('refuses to move a source back into approved while it is still processing', async () => {
     const source = await createManualSource(org.adminCtx, {
       title: 'Source not yet processed',
-      text: 'A qualitative interview study explored barriers to attending follow-up appointments among rural patients.',
+      text: 'A retrospective audit of physiotherapy referral wait times was conducted across four outpatient clinics.',
       skipEnrichment: false,
     });
-    // Freshly ingested with enrichment queued (not completed), so
-    // approval must be refused until processing finishes.
+    // Demoting doesn't require processing to be complete -- only
+    // (re-)approving does.
+    await changeReviewStatus(org.adminCtx, source.source_id, { status: 'needs_review' });
+    // Enrichment was never run to completion in this test, so it's still
+    // queued -- re-approving must be refused until processing finishes.
     await expect(
       changeReviewStatus(org.adminCtx, source.source_id, { status: 'approved' }),
     ).rejects.toMatchObject({ code: 'CONFLICT' });

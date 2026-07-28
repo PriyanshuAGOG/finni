@@ -17,6 +17,7 @@ on:
           - appwrite-provision
           - bootstrap-admin
           - list-users
+          - list-api-clients
 
 jobs:
   run:
@@ -67,5 +68,11 @@ jobs:
       - name: List organizations and users (diagnostic, no secrets printed)
         if: inputs.task == 'list-users'
         run: npm run db:list-users
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: List API clients (diagnostic, no credentials printed)
+        if: inputs.task == 'list-api-clients'
+        run: npm run db:list-api-clients
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

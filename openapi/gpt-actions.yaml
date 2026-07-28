@@ -705,7 +705,7 @@ paths:
       operationId: createSource
       summary: Create a source from supplied text rather than a URL
       description: Creates a source from text you already have (pasted article, manual note, no fetchable
-        URL). For a URL use ingestUrl instead. Writes; the created source is always unreviewed.
+        URL). For a URL use ingestUrl instead. Writes; approved immediately.
       tags:
         - sources
         - ingestion
@@ -1135,9 +1135,9 @@ paths:
       operationId: ingestUrl
       summary: Save one URL to the library and queue enrichment
       description: Fetches a URL, extracts content, checks duplicates, creates a source and queues
-        enrichment. Never approved on creation -- it enters needs_review. On DUPLICATE_SOURCE, tell
-        the user what exists and ask whether to open it, save related, or version it -- don't
-        silently retry. Writes.
+        enrichment. Approved immediately (no review queue) -- mention extraction warnings if
+        present. On DUPLICATE_SOURCE, tell the user what exists and ask whether to open it, save
+        related, or version it. Writes.
       tags:
         - sources
         - ingestion
@@ -1266,7 +1266,7 @@ paths:
       operationId: ingestIdentifier
       summary: Save a paper by DOI or PubMed identifier
       description: Resolves a DOI or PMID to its bibliographic record and saves it as a source. Returns
-        the existing record if already in the library. Writes; the created source is unreviewed.
+        the existing record if already in the library. Writes; approved immediately.
       tags:
         - sources
         - ingestion
