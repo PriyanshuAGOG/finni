@@ -22,6 +22,7 @@ Some operations escalate risk dynamically (a batch above the configured threshol
 | `bulkArchiveSources` | POST `/sources/bulk/archive` | **high** | Yes | source.archive | — |
 | `bulkChangeSourceReviewStatus` | POST `/sources/bulk/review-status` | **high** | Yes | — | — |
 | `mergeCategories` | POST `/categories/merge` | **high** | Yes | taxonomy.merge | — |
+| `removeMember` | POST `/team/members/{userId}/remove` | **high** | — | user.manage | Yes |
 | `approveResearchBrief` | POST `/briefs/{briefId}/approve` | **medium** | — | brief.approve | — |
 | `archiveAnnotation` | POST `/annotations/{annotationId}/archive` | **medium** | — | — | — |
 | `archiveCategory` | POST `/categories/{categoryId}/archive` | **medium** | Yes | taxonomy.archive | — |
@@ -32,6 +33,7 @@ Some operations escalate risk dynamically (a batch above the configured threshol
 | `inviteMember` | POST `/team/invitations` | **medium** | — | user.manage | Yes |
 | `mergeTags` | POST `/tags/merge` | **medium** | Yes | taxonomy.merge | — |
 | `moveCategory` | POST `/categories/{categoryId}/move` | **medium** | — | taxonomy.update | — |
+| `reactivateMember` | POST `/team/members/{userId}/reactivate` | **medium** | — | user.manage | Yes |
 | `refreshSmartCollection` | POST `/collections/{collectionId}/refresh` | **medium** | — | collection.update | — |
 | `regenerateContentSection` | POST `/content/{contentId}/regenerate-section` | **medium** | — | content.generate | — |
 | `removeClaimEvidence` | DELETE `/claims/{claimId}/evidence/{evidenceId}` | **medium** | Yes | claim.update | — |
@@ -53,6 +55,7 @@ Some operations escalate risk dynamically (a batch above the configured threshol
 | `updateClaim` | PATCH `/claims/{claimId}` | **medium** | Yes | claim.update | — |
 | `updateCollection` | PATCH `/collections/{collectionId}` | **medium** | — | collection.update | — |
 | `updateGeneratedContent` | PATCH `/content/{contentId}` | **medium** | — | content.generate | — |
+| `updateMember` | PATCH `/team/members/{userId}` | **medium** | — | user.manage | Yes |
 | `updateResearchBrief` | PATCH `/briefs/{briefId}` | **medium** | — | brief.update | — |
 | `updateSource` | PATCH `/sources/{sourceId}` | **medium** | — | source.update | — |
 | `updateSourceTaxonomy` | POST `/sources/{sourceId}/taxonomy` | **medium** | — | source.update | — |

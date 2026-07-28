@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireSessionContext } from '../../lib/session';
 import { listSources } from '../../../services/source';
 import { ReviewStatusBadge, ProcessingStatusBadge } from '../../../components/badges';
+import { AddSourceForm } from './add-source-form';
 
 const VIEWS: Record<string, { reviewStatus?: string[]; processingStatus?: string[]; label: string }> = {
   all: { label: 'All' },
@@ -37,6 +38,8 @@ export default async function ResearchInboxPage({
         <h1 className="text-xl font-semibold text-slate-900">Research Inbox</h1>
         <p className="text-sm text-slate-500">High-density triage of newly ingested and in-flight sources.</p>
       </div>
+
+      <AddSourceForm />
 
       <div className="flex gap-2">
         {Object.entries(VIEWS).map(([key, v]) => (

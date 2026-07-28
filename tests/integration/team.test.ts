@@ -38,7 +38,10 @@ describe('inviting a member', () => {
       fullName: 'New Researcher',
       roleSlug: 'researcher',
     });
-    expect(result.email_sent).toBe(true);
+    // EMAIL_PROVIDER defaults to "console" in tests -- nothing is actually
+    // sent, so the link must come back in the response instead.
+    expect(result.email_sent).toBe(false);
+    expect(result.accept_url).toBeTruthy();
     expect(captureInviteToken(logSpy)).toBeTruthy();
 
     const members = await listMembers(org.adminCtx);

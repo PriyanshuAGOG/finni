@@ -7926,6 +7926,143 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /team/members/{userId}:
+    patch:
+      operationId: updateMember
+      summary: Edit a member's name, title or role (administrators)
+      description: Updates a member's display name, job title and/or role. Omitted fields are left
+        unchanged. Requires user.manage.
+      tags:
+        - admin
+      x-risk-level: medium
+      x-may-require-confirmation: false
+      x-required-scopes: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      minLength: 1
+                job_title:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                role_slug:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      minLength: 1
+              required: []
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: {}
+                    additionalProperties: true
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        default:
+          description: Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /team/members/{userId}/remove:
+    post:
+      operationId: removeMember
+      summary: Deactivate a member (administrators)
+      description: Deactivates a member's account -- reversible via updateMember, not a permanent delete,
+        since audit and version history still reference them. Refuses to remove your own account or
+        the last active administrator. Requires user.manage.
+      tags:
+        - admin
+      x-risk-level: high
+      x-may-require-confirmation: false
+      x-required-scopes: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: {}
+                    additionalProperties: true
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        default:
+          description: Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /team/members/{userId}/reactivate:
+    post:
+      operationId: reactivateMember
+      summary: Restore a deactivated or suspended member to active (administrators)
+      description: Sets a deactivated or suspended member back to active. Requires user.manage.
+      tags:
+        - admin
+      x-risk-level: medium
+      x-may-require-confirmation: false
+      x-required-scopes: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: {}
+                    additionalProperties: true
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        default:
+          description: Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   securitySchemes:
     OAuth2:
