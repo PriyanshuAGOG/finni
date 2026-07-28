@@ -102,8 +102,8 @@ export async function destroyTestOrg(organizationId: string): Promise<void> {
       'research_briefs', 'generated_content_citations', 'generated_content',
       'saved_searches', 'ai_usage_events', 'search_events', 'action_confirmations',
       'idempotency_keys', 'audit_logs', 'sources', 'categories', 'tags',
-      'api_clients', 'oauth_clients', 'user_permission_overrides', 'user_roles',
-      'roles',
+      'api_clients', 'oauth_clients', 'user_permission_overrides', 'user_invitations',
+      'user_roles', 'roles',
     ]) {
       await sql.query(`DELETE FROM ${table}`);
     }

@@ -64,6 +64,18 @@ This is only for file storage — original ingested documents and page snapshots
 
 If `STORAGE_DRIVER=appwrite` is set without `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID` and `APPWRITE_API_KEY` all present, the app refuses to boot with a clear `Invalid environment configuration` error rather than failing later on the first ingest.
 
+## 2b. Email (team invitations)
+
+Inviting a teammate (Settings → Team, or the `inviteMember` operation) emails them a link to set a password and activate their account. `EMAIL_PROVIDER=console` (default) just logs the email server-side instead of sending it — fine for local dev, not for production. For production, set:
+
+```bash
+EMAIL_PROVIDER=resend
+EMAIL_FROM=Nirog Bhoomi Research OS <you@yourdomain.com>
+RESEND_API_KEY=<a Resend API key>
+```
+
+Create a free account and API key at resend.com; `EMAIL_FROM` needs a domain verified there (or use their `onboarding@resend.dev` sender for testing). If sending fails for any reason, `inviteMember` doesn't fail the whole request — it returns the invitation link directly in the response so it can be shared manually, and the dashboard surfaces that as the success message instead.
+
 ## 3. Deploy the web application
 
 **Vercel**: connect the repo, set the environment variables above in Project Settings, deploy. `next build` runs `tsc` as part of the type-check step, so a broken build fails the deploy rather than shipping.
@@ -83,11 +95,24 @@ npm run worker
 
 Deploy this as its own service (Fly.io machine, Render background worker, a small ECS task, systemd unit on a VM). It needs the same `DATABASE_URL`, `AI_*`, and `SEARCH_*` variables as the web app. Scale `WORKER_CONCURRENCY` and the number of worker instances together — each instance claims jobs independently via `SKIP LOCKED`, so running several is safe.
 
-## 5. Run migrations and seed data
+## 5. Run migrations and create the first administrator
 
 ```bash
 npm run db:migrate          # apply schema (idempotent, tracked in schema_migrations)
-npm run db:seed             # optional: realistic sample data for evaluation/demo
+```
+
+`db:seed` (below) is synthetic demo data for evaluation only — it clears and rebuilds itself on every run, so never point it at a real deployment. For a real deployment, create the organization and first administrator instead:
+
+```bash
+ORG_NAME="Your Org Name" ORG_SLUG=your-org-slug \
+ADMIN_NAME="Your Name" ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='a strong password' \
+npm run bootstrap:admin
+```
+
+Safe to re-run: with the same `ORG_SLUG` and `ADMIN_EMAIL` it updates the existing admin's name and password rather than erroring, so it doubles as a password reset if you ever need one. Every other teammate should be added afterward via Settings → Team (or `inviteMember`) rather than by running this script again, so each account is properly attributed to whoever invited them.
+
+```bash
+npm run db:seed             # optional: realistic sample data for evaluation/demo only
 ```
 
 ## 6. Generate the OpenAPI spec and docs for this deployment

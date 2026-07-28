@@ -13,6 +13,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "openapi:generate": "tsx scripts/generate-openapi.ts",
     "appwrite:provision": "tsx scripts/appwrite-provision.ts",
+    "bootstrap:admin": "tsx scripts/bootstrap-admin.ts",
     "docs:generate": "tsx scripts/generate-docs.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

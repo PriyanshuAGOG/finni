@@ -88,6 +88,16 @@ const schema = z.object({
   APPWRITE_API_KEY: z.string().optional(),
   APPWRITE_BUCKET_ID: z.string().default('research_os_sources'),
 
+  /**
+   * "console" (default) logs the email instead of sending it -- fine for
+   * local dev, useless in production. "resend" sends via the Resend API.
+   */
+  EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
+  EMAIL_FROM: z.string().default('Nirog Bhoomi Research OS <onboarding@resend.dev>'),
+  /** Server-side secret. Required when EMAIL_PROVIDER=resend. */
+  RESEND_API_KEY: z.string().optional(),
+  INVITATION_TTL_HOURS: z.coerce.number().int().positive().default(168),
+
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
 
@@ -116,7 +126,10 @@ const schema = z.object({
       'APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID and APPWRITE_API_KEY are all required when STORAGE_DRIVER=appwrite.',
     path: ['STORAGE_DRIVER'],
   },
-);
+).refine((env) => env.EMAIL_PROVIDER !== 'resend' || env.RESEND_API_KEY, {
+  message: 'RESEND_API_KEY is required when EMAIL_PROVIDER=resend.',
+  path: ['EMAIL_PROVIDER'],
+});
 
 export type Env = z.infer<typeof schema>;
 
