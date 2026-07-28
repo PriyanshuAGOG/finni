@@ -30,6 +30,16 @@ export interface Operation<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
    * confirmation may be required.
    */
   description: string;
+  /**
+   * Shorter description used only in gpt-actions.yaml, when set.
+   * ChatGPT's Actions editor caps an operation description at 300
+   * characters; `description` above is written for full.yaml and the
+   * rest of the docs and is routinely longer than that. Required
+   * (enforced by the generator) for every operation in
+   * scripts/generate-openapi.ts's CORE_GPT_ACTIONS whose `description`
+   * exceeds 300 characters.
+   */
+  gptDescription?: string;
   tags: string[];
   /** Permission required. Enforced by the handler, not by the service alone. */
   permission?: Permission;

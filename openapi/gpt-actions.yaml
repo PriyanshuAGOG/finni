@@ -8,10 +8,7 @@ info:
 servers:
   - url: https://research.nirogbhoomi.com/api/v1
     description: Production
-  - url: http://localhost:3000/api/v1
-    description: Local development
 security:
-  - OAuth2: []
   - ApiKey: []
 tags:
   - name: audit
@@ -32,17 +29,9 @@ paths:
     get:
       operationId: getCurrentUser
       summary: Get the authenticated user, their roles and their effective permissions
-      description: >-
-        Returns the identity this connection acts as, together with roles, granted scopes, effective
-        permissions and preferences.
-
-
-        Use this when identity or permissions matter to what you are about to do -- for example
-        before offering to approve a source or merge categories. Do not assume a permission the user
-        has not been shown to hold, and do not use this to work around a FORBIDDEN response.
-
-
-        This operation does not modify anything.
+      description: Returns this connection's identity, roles, granted scopes and effective permissions.
+        Use before assuming a permission the user hasn't been shown to hold. Does not modify
+        anything.
       tags:
         - profile
       x-risk-level: low
@@ -73,24 +62,10 @@ paths:
     post:
       operationId: searchKnowledge
       summary: Search the internal library with natural language and structured filters
-      description: >-
-        Searches Nirog Bhoomi's own sources, claims, collections, annotations and briefs using
-        hybrid retrieval (full-text, semantic, identifier, taxonomy and evidence-weighted ranking).
-
-
-        Use this whenever the user asks what the organization already knows, asks you to find saved
-        research, or asks a substantive topic question that the library may cover. Always search
-        before synthesizing, unless you already hold specific source ids.
-
-
-        This returns retrieval results with matched passages and locators. It does NOT write an
-        answer -- use synthesizeKnowledge for that. It does NOT search the web; use
-        previewExternalResearch or startResearchJob for external discovery.
-
-
-        Every result states its origin (internal_approved, internal_unreviewed or
-        internal_archived). Never describe an unreviewed result as approved organizational evidence.
-        This operation does not modify anything.
+      description: Hybrid search (full-text, semantic, taxonomy, evidence-weighted) over internal sources,
+        claims, collections and briefs. Search before synthesizing. Returns passages with locators,
+        never web results. Every result states origin (approved/unreviewed/archived) -- never call
+        unreviewed approved.
       tags:
         - knowledge
       x-risk-level: low
@@ -286,24 +261,9 @@ paths:
     post:
       operationId: synthesizeKnowledge
       summary: Generate a cited answer from internal sources only
-      description: >-
-        Produces an evidence-backed answer built strictly from Nirog Bhoomi's own sources, with a
-        citation for every factual statement.
-
-
-        Use this when the user wants an answer rather than a list of results -- a cited overview, a
-        comparison across retrieved evidence, or a summary of contradictions and limitations. Search
-        first unless you already know which source ids to use.
-
-
-        The service rejects any citation the model produced that is not in the retrieval context, so
-        citations returned here always correspond to real passages. Statements whose citations were
-        all invalid are dropped rather than shown uncited.
-
-
-        Defaults to approved sources only. Setting approved_only to false includes unreviewed
-        material, which must then be described as unreviewed in your answer. This operation does not
-        use the web and does not modify anything.
+      description: Produces a cited answer built only from internal sources; citations not matching a real
+        retrieved passage are stripped. Search first unless you already hold source ids. Defaults to
+        approved sources only; unreviewed material must be labeled as such if included.
       tags:
         - knowledge
       x-risk-level: low
@@ -410,18 +370,9 @@ paths:
     post:
       operationId: findEvidence
       summary: Find supporting, contradicting or qualifying evidence for a claim or question
-      description: >-
-        Returns evidence relevant to a specific claim or question, separated into evidence that has
-        been curated and reviewed (attached to a claim record) and evidence that is only a retrieval
-        match.
-
-
-        Use this when the user asks whether something is supported, what contradicts it, or wants
-        the exact passages behind a position. The distinction in the response matters: curated claim
-        evidence has been reviewed by a person, passage evidence has not.
-
-
-        This does not create or modify claims. Use createClaim or addClaimEvidence for that.
+      description: Finds evidence for a claim/question, separating human-reviewed claim evidence from
+        unreviewed retrieval matches -- say which is which. Does not create or modify claims; use
+        createClaim/addClaimEvidence for that.
       tags:
         - knowledge
       x-risk-level: low
@@ -490,18 +441,9 @@ paths:
     post:
       operationId: compareSources
       summary: Compare two to eight sources across methodology dimensions
-      description: >-
-        Builds a side-by-side comparison of the selected sources across study design, population,
-        intervention, comparator, duration, outcomes, findings, limitations, funding and conflicts
-        of interest.
-
-
-        Use this when the user asks how studies differ, which is stronger, or why two sources seem
-        to disagree. The response names which sources have no data for each dimension, and flags
-        whether the study metadata was human-verified or only auto-extracted.
-
-
-        Requires between two and eight source ids. This operation does not modify anything.
+      description: Side-by-side comparison of 2-8 sources across design, population, intervention,
+        outcomes, funding and conflicts of interest. Flags whether metadata was human-verified or
+        auto-extracted. Does not modify anything.
       tags:
         - knowledge
       x-risk-level: low
@@ -554,16 +496,8 @@ paths:
     get:
       operationId: listSources
       summary: List and filter library sources
-      description: >-
-        Returns a filtered, paginated list of sources with their review and processing state.
-
-
-        Use this for browsing and filtering -- "show sources awaiting review", "what did I add this
-        week", "list everything in this collection". For relevance-ranked topic search use
-        searchKnowledge instead; this operation does not rank by relevance to a question.
-
-
-        This operation does not modify anything.
+      description: Filtered, paginated browse of sources by review/processing state. For relevance-ranked
+        topic search use searchKnowledge instead. Does not modify anything.
       tags:
         - sources
       x-risk-level: low
@@ -770,17 +704,8 @@ paths:
     post:
       operationId: createSource
       summary: Create a source from supplied text rather than a URL
-      description: >-
-        Creates a source record from text you already have -- a manual note, pasted article text, an
-        internal document, or a citation with no retrievable URL.
-
-
-        Use this when there is no URL to fetch, or when the publisher blocks automated access and
-        the user has supplied the text. For a URL, use ingestUrl instead: it captures the original
-        and its metadata.
-
-
-        This operation writes. The created source is unreviewed.
+      description: Creates a source from text you already have (pasted article, manual note, no fetchable
+        URL). For a URL use ingestUrl instead. Writes; the created source is always unreviewed.
       tags:
         - sources
         - ingestion
@@ -886,22 +811,9 @@ paths:
     get:
       operationId: getSource
       summary: Get one source with its metadata, taxonomy and optional detail
-      description: >-
-        Returns the full record for one source: metadata, summaries, categories, tags, collections,
-        review state and processing state.
-
-
-        Use this when a specific source has been identified and you need its details, or before
-        proposing an edit. The optional include flags add study metadata, claims, annotations,
-        versions and activity.
-
-
-        Full text is not returned by default and is truncated when requested; use
-        searchSourcePassages to retrieve specific passages with locators rather than pulling the
-        whole document.
-
-
-        This operation does not modify anything.
+      description: "Full record for one source: metadata, review/processing state, and optionally study
+        metadata, claims, annotations, versions, activity. Use searchSourcePassages for exact
+        passages rather than full text. Does not modify anything."
       tags:
         - sources
       x-risk-level: low
@@ -978,22 +890,190 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    patch:
+      operationId: updateSource
+      summary: Correct editable metadata on a source
+      description: Updates editable metadata (title, authors, publisher, dates, abstract, summaries,
+        findings, limitations) on an existing source. Does not change review status, taxonomy or
+        collections -- use those dedicated operations. Locked fields need source.lock_fields.
+        Writes.
+      tags:
+        - sources
+      x-risk-level: medium
+      x-may-require-confirmation: false
+      x-required-scopes:
+        - source.write
+      parameters:
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expected_version:
+                  anyOf:
+                    - not: {}
+                    - type: integer
+                title:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                subtitle:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                source_type:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                canonical_url:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                doi:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                pmid:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                author_text:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                publisher:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                journal:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                publication_date:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                language:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                country:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                abstract:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                human_summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                evidence_summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                key_findings:
+                  anyOf:
+                    - not: {}
+                    - type: array
+                      items:
+                        type: string
+                limitations:
+                  anyOf:
+                    - not: {}
+                    - type: array
+                      items:
+                        type: string
+                safety_notes:
+                  anyOf:
+                    - not: {}
+                    - type: array
+                      items:
+                        type: string
+                practical_implications:
+                  anyOf:
+                    - not: {}
+                    - type: array
+                      items:
+                        type: string
+                conflicts_of_interest:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                funding_information:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+                visibility:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      enum:
+                        - private
+                        - restricted
+                        - organization
+                        - selected_collections
+                retraction_status:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                retraction_reason:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      nullable: true
+              required: []
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: {}
+                    additionalProperties: true
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        default:
+          description: Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /sources/{sourceId}/passages/search:
     post:
       operationId: searchSourcePassages
       summary: Find exact passages within one source
-      description: >-
-        Searches inside a single source and returns the best-matching passages with page numbers and
-        locators.
-
-
-        Use this when the user wants an exact quotation, asks where a statement appears in a
-        document, needs a page reference, or when you must verify a claim against its source before
-        repeating it.
-
-
-        Never paraphrase a passage as if it were a quotation. Never invent a page number -- use the
-        locator this returns. This operation does not modify anything.
+      description: Finds best-matching passages with page numbers/locators inside one source. Use for an
+        exact quotation or to verify a claim before repeating it -- never paraphrase as a quotation
+        or invent a page number. Does not modify anything.
       tags:
         - sources
       x-risk-level: low
@@ -1054,26 +1134,10 @@ paths:
     post:
       operationId: ingestUrl
       summary: Save one URL to the library and queue enrichment
-      description: >-
-        Fetches a URL, extracts its content, checks for duplicates, creates a source record and
-        queues AI enrichment.
-
-
-        Use this when the user explicitly asks to save, log or add a link, or when an external
-        research candidate has been chosen for saving. Do not call it speculatively for a URL the
-        user merely mentioned.
-
-
-        The newly created source is NOT approved. It enters the Research Inbox as needs_review, and
-        you must say so rather than implying it is now organizational evidence.
-
-
-        If a duplicate exists this returns DUPLICATE_SOURCE with the existing record; tell the user
-        what already exists and ask whether to open it, save a related copy, or capture a new
-        version. Do not silently create a second copy.
-
-
-        This operation writes. Supply an Idempotency-Key header to make a retry safe.
+      description: Fetches a URL, extracts content, checks duplicates, creates a source and queues
+        enrichment. Never approved on creation -- it enters needs_review. On DUPLICATE_SOURCE, tell
+        the user what exists and ask whether to open it, save related, or version it -- don't
+        silently retry. Writes.
       tags:
         - sources
         - ingestion
@@ -1201,16 +1265,8 @@ paths:
     post:
       operationId: ingestIdentifier
       summary: Save a paper by DOI or PubMed identifier
-      description: >-
-        Resolves a DOI or PMID to its bibliographic record and landing page, then saves it as a
-        source.
-
-
-        Use this when the user gives a DOI or PMID rather than a URL. If the identifier is already
-        in the library the existing record is returned and nothing new is created.
-
-
-        This operation writes. The created source is unreviewed.
+      description: Resolves a DOI or PMID to its bibliographic record and saves it as a source. Returns
+        the existing record if already in the library. Writes; the created source is unreviewed.
       tags:
         - sources
         - ingestion
@@ -1261,6 +1317,83 @@ paths:
           description: A client-generated key that makes a retried write safe to repeat.
           schema:
             type: string
+      responses:
+        "200":
+          description: Success.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties: {}
+                    additionalProperties: true
+                  meta:
+                    $ref: "#/components/schemas/ResponseMeta"
+        default:
+          description: Error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /sources/{sourceId}/taxonomy:
+    post:
+      operationId: updateSourceTaxonomy
+      summary: Add or remove categories and tags on a source
+      description: Adds or removes categories and tags on a source. Categories must already exist -- use
+        findSimilarCategories/createCategory first if new. Tags are created on demand. Does not
+        change review status or collection membership. Writes.
+      tags:
+        - sources
+        - taxonomy
+      x-risk-level: medium
+      x-may-require-confirmation: false
+      x-required-scopes:
+        - source.write
+        - taxonomy.write
+      parameters:
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                add_category_ids:
+                  anyOf:
+                    - not: {}
+                    - type: array
+                      items:
+                        type: string
+                        format: uuid
+                remove_category_ids:
+                  anyOf:
+                    - not: {}
+                    - type: array
+                      items:
+                        type: string
+                        format: uuid
+                add_tags:
+                  anyOf:
+                    - not: {}
+                    - type: array
+                      items:
+                        type: string
+                remove_tag_ids:
+                  anyOf:
+                    - not: {}
+                    - type: array
+                      items:
+                        type: string
+                        format: uuid
+              required: []
       responses:
         "200":
           description: Success.
@@ -1353,25 +1486,10 @@ paths:
     post:
       operationId: changeSourceReviewStatus
       summary: Approve, reject or otherwise change a source review status
-      description: >-
-        Changes the review status of one source: approved, approved_with_conditions, rejected,
-        disputed, in_review, needs_review or superseded.
-
-
-        Use this only when the user, holding the relevant permission, explicitly decides on a
-        source. Approving a source makes it count as organizational evidence, so never do it on your
-        own initiative.
-
-
-        A reason is required to reject. Conditions are required for approved_with_conditions. Not
-        every transition is allowed -- a rejected source must return to review before it can be
-        approved. A source that is still processing cannot be approved.
-
-
-        For several sources at once use bulkChangeSourceReviewStatus, which requires confirmation.
-
-
-        This operation writes and requires the source.approve or source.reject permission.
+      description: Changes a source review status (approved/rejected/disputed/etc). Only call when the
+        permitted user has explicitly decided -- approving makes it organizational evidence, never
+        on your own initiative. Reason required to reject; conditions required for
+        approved_with_conditions. Writes.
       tags:
         - sources
         - review
@@ -1535,18 +1653,9 @@ paths:
     post:
       operationId: createCollection
       summary: Create a new collection
-      description: >-
-        Creates a collection to organize sources around a topic, research question or content
-        project.
-
-
-        Before creating one, check listCollections or the similar_collections field this returns for
-        an existing collection covering the same ground -- several collections on one topic are
-        sometimes legitimate, so this is reported rather than blocked, but check with the user if a
-        close match exists.
-
-
-        This operation writes. It is idempotent when given an Idempotency-Key.
+      description: Creates a collection to organize sources around a topic or project. Check
+        listCollections/similar_collections first for an existing match; ask the user if a close one
+        exists. Writes; idempotent with an Idempotency-Key.
       tags:
         - collections
       x-risk-level: low
@@ -1641,14 +1750,9 @@ paths:
     get:
       operationId: findSimilarCategories
       summary: Find categories that would overlap with a proposed name
-      description: >-
-        Checks whether a proposed category name (and optional parent) is a likely duplicate of an
-        existing one, comparing normalized names and declared synonyms.
-
-
-        Call this before createCategory whenever the user asks to create a category. A similarity of
-        0.9 or higher generally means an existing category should be used instead. This operation
-        does not modify anything.
+      description: Checks whether a proposed category name/parent duplicates an existing one. Call before
+        createCategory. Similarity >=0.9 generally means use the existing category instead. Does not
+        modify anything.
       tags:
         - taxonomy
       x-risk-level: low
@@ -1704,21 +1808,9 @@ paths:
     post:
       operationId: createCategory
       summary: Create a new taxonomy category
-      description: >-
-        Creates a category in the controlled taxonomy.
-
-
-        Always call findSimilarCategories first. If a likely duplicate exists (similarity 0.9+), do
-        not create a new category -- tell the user what already exists and recommend using it,
-        unless they explicitly confirm a genuinely distinct category is needed. If they confirm,
-        retry with allow_duplicate set to true.
-
-
-        If a duplicate exists and allow_duplicate is not set, this returns CONFLICT with the
-        matching categories rather than creating a near-duplicate silently.
-
-
-        This operation writes.
+      description: "Creates a taxonomy category. Always call findSimilarCategories first -- if a likely
+        duplicate exists (>=0.9), recommend it instead unless the user explicitly confirms a
+        distinct category is needed (allow_duplicate: true). Writes."
       tags:
         - taxonomy
       x-risk-level: medium
@@ -1780,260 +1872,6 @@ paths:
           description: A client-generated key that makes a retried write safe to repeat.
           schema:
             type: string
-      responses:
-        "200":
-          description: Success.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties: {}
-                    additionalProperties: true
-                  meta:
-                    $ref: "#/components/schemas/ResponseMeta"
-        default:
-          description: Error.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /claims:
-    post:
-      operationId: createClaim
-      summary: Create a claim, optionally with initial evidence
-      description: >-
-        Creates one atomic, checkable claim -- a specific proposition, not a general topic. Preserve
-        the source's qualifiers rather than stating the claim more strongly than the evidence
-        supports.
-
-
-        Attach evidence at creation via source_evidence, or add it afterward with addClaimEvidence.
-        When citing a specific passage, pass its passage_id from a prior search so the excerpt and
-        locator are taken from the actual text rather than typed freehand.
-
-
-        Do not create a claim from a source's cited background material, an author's opinion, or a
-        recommendation -- those are not the source's own finding. This operation writes.
-      tags:
-        - claims
-      x-risk-level: low
-      x-may-require-confirmation: false
-      x-required-scopes:
-        - claim.write
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                canonical_text:
-                  type: string
-                  minLength: 15
-                simplified_text:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                claim_type:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                topic:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                population:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                intervention:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                comparator:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                outcome:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                timeframe:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                context:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                units:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                quantitative_value:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                safety_relevance:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                category_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
-                source_evidence:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: object
-                        properties:
-                          source_id:
-                            type: string
-                            format: uuid
-                          relationship:
-                            type: string
-                            enum:
-                              - supports
-                              - contradicts
-                              - qualifies
-                              - contextualizes
-                              - cites
-                              - replicates
-                              - fails_to_replicate
-                          passage_id:
-                            type: string
-                            format: uuid
-                            nullable: true
-                          excerpt:
-                            type: string
-                            nullable: true
-                          locator:
-                            type: string
-                            nullable: true
-                        required:
-                          - source_id
-                          - relationship
-                        additionalProperties: false
-              required:
-                - canonical_text
-      parameters:
-        - name: Idempotency-Key
-          in: header
-          required: false
-          description: A client-generated key that makes a retried write safe to repeat.
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Success.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties: {}
-                    additionalProperties: true
-                  meta:
-                    $ref: "#/components/schemas/ResponseMeta"
-        default:
-          description: Error.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /claims/{claimId}/evidence:
-    post:
-      operationId: addClaimEvidence
-      summary: Connect a source as evidence for a claim
-      description: >-
-        Attaches a source as supporting, contradicting, qualifying, contextualizing, citing,
-        replicating or failing-to-replicate evidence for a claim.
-
-
-        When passage_id is supplied, the excerpt and locator come from the actual stored passage,
-        not from typed text. This recomputes the claim's evidence status if it has not yet been
-        reviewed by a human; if it has, the claim is flagged for re-review instead of being
-        overridden.
-
-
-        This operation writes.
-      tags:
-        - claims
-      x-risk-level: low
-      x-may-require-confirmation: false
-      x-required-scopes:
-        - claim.write
-      parameters:
-        - name: claimId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                source_id:
-                  type: string
-                  format: uuid
-                relationship:
-                  type: string
-                  enum:
-                    - supports
-                    - contradicts
-                    - qualifies
-                    - contextualizes
-                    - cites
-                    - replicates
-                    - fails_to_replicate
-                passage_id:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      format: uuid
-                      nullable: true
-                excerpt:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                locator:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                evidence_strength:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-              required:
-                - source_id
-                - relationship
       responses:
         "200":
           description: Success.
@@ -2145,15 +1983,10 @@ paths:
     post:
       operationId: analyzeClaimConflicts
       summary: Compare a claim against related claims for potential contradictions
-      description: >-
-        Compares a claim against other claims covering similar ground and classifies each
-        relationship: true contradiction, different population, different intervention intensity,
-        different outcome, different time horizon, an added qualification, or a methodological
-        disagreement.
-
-
-        These are suggestions for a human reviewer, never a settled verdict, and no claim status is
-        changed by this call. This operation does not modify anything.
+      description: Compares a claim against similar claims, classifying each relationship (contradiction,
+        different population/intervention/outcome/timeframe, qualification, methodology
+        disagreement). Suggestions for a human reviewer only, never a verdict. Does not modify
+        anything.
       tags:
         - claims
       x-risk-level: low
@@ -2205,18 +2038,9 @@ paths:
     post:
       operationId: previewExternalResearch
       summary: Search external sources without saving anything
-      description: >-
-        Searches PubMed and, if configured, a general web provider for candidate sources matching a
-        research question, and reports what the internal library already holds on the same topic.
-
-
-        Use this for a bounded, quick external look before deciding whether a full research job is
-        warranted, or to show the user candidates before saving any. Nothing is written to the
-        library by this call.
-
-
-        Every candidate is external_web and is explicitly not approved Nirog Bhoomi evidence --
-        never present a candidate as though it were.
+      description: Bounded external search (PubMed + configured web provider) for candidates on a topic,
+        plus what the library already holds. Every candidate is external_web, unreviewed -- never
+        present as approved evidence. Writes nothing.
       tags:
         - research
       x-risk-level: low
@@ -2336,23 +2160,10 @@ paths:
     post:
       operationId: startResearchJob
       summary: Start an asynchronous, multi-query research job
-      description: >-
-        Starts a background research job: expands the question into several search queries, searches
-        internal and/or external sources per search_scope, and records candidates for review.
-        Optionally creates a collection up front.
-
-
-        Use this for a broad or multi-step research request, where several candidate sources need
-        evaluating against inclusion and exclusion criteria, rather than for a single quick lookup
-        (use previewExternalResearch or searchKnowledge for that).
-
-
-        This does not ingest anything by itself unless automatically_ingest_selected is set and
-        candidates are later selected via selectResearchCandidates. Report the job as queued; check
-        getResearchJob for progress rather than assuming completion.
-
-
-        This operation writes and is idempotent when given an Idempotency-Key.
+      description: "Starts a background research job: expands the question into queries, searches
+        internal/external sources, records candidates for review. Use for broad multi-step research,
+        not a quick lookup. Nothing is ingested unless candidates are later selected. Writes;
+        idempotent with a key."
       tags:
         - research
       x-risk-level: low
@@ -2496,18 +2307,9 @@ paths:
     post:
       operationId: selectResearchCandidates
       summary: Include or exclude research candidates, optionally ingesting the included ones
-      description: >-
-        Marks candidates as included or excluded, with a reason for each exclusion. When
-        ingest_included is true, included candidates are saved to the library via the normal
-        ingestion path and added to the job's collection if one exists.
-
-
-        Do not select and ingest every candidate automatically unless the user has given clear
-        criteria authorizing that. Report duplicates and failures explicitly. Ingested sources are
-        unreviewed, never approved evidence.
-
-
-        This operation writes.
+      description: Marks research candidates included/excluded with a reason each. If ingest_included is
+        true, included ones are saved via the normal ingestion path. Never auto-select/ingest
+        everything without explicit user criteria. Writes.
       tags:
         - research
       x-risk-level: low
@@ -2594,17 +2396,9 @@ paths:
     post:
       operationId: generateResearchBrief
       summary: Draft or regenerate a brief's sections from its sources
-      description: >-
-        Generates the requested sections (executive_summary, methodology, findings, contradictions,
-        limitations, recommendations, safety_notes) from the brief's attached sources. Every factual
-        statement is cited; a citation the model invented is stripped rather than kept.
-
-
-        A previous version is saved before overwriting. Cannot run on an approved brief -- editing
-        an approved brief needs a new version via createResearchBrief.
-
-
-        This operation writes.
+      description: Generates requested brief sections from its attached sources, citing every factual
+        statement (invented citations are stripped). Saves a prior version before overwriting.
+        Cannot run on an approved brief. Writes.
       tags:
         - briefs
       x-risk-level: low
@@ -2664,24 +2458,10 @@ paths:
     post:
       operationId: generateEvidenceBasedContent
       summary: Draft content from library sources with citations
-      description: >-
-        Drafts content (blog article, patient guide, FAQ, video script, social post, newsletter,
-        training notes, presentation outline, or research summary) built from cited library
-        passages.
-
-
-        Defaults to approved sources only (source_policy approved_only). Using approved_preferred or
-        any_internal includes unreviewed material and the response will flag it; do not publish that
-        as approved Nirog Bhoomi guidance without review.
-
-
-        Every factual statement in the body carries a citation marker verified against the retrieval
-        context; anything the model could not support is returned separately as unsupported_claims
-        rather than left uncited in the body. Health-facing content requires review by a qualified
-        reviewer before publication -- always say so.
-
-
-        This operation writes and creates a content record.
+      description: Drafts content (article, patient guide, FAQ, script, etc.) from cited library passages.
+        Defaults to approved sources only; broader policies flag unreviewed material. Unsupported
+        statements are returned separately, never left uncited. Health content always needs reviewer
+        sign-off. Writes.
       tags:
         - content
       x-risk-level: low
@@ -2811,18 +2591,9 @@ paths:
     post:
       operationId: validateContentCitations
       summary: Check a content draft's statements against its cited sources
-      description: >-
-        Independently re-checks each cited statement in a content draft against the text of the
-        passage it cites, and flags any factual statement carrying no citation at all.
-
-
-        Returns supported, weakly supported and unsupported statements, citation marker mismatches,
-        and safety review flags including absolute or guaranteeing language. Use this before
-        recommending that content be published, and always surface unsupported or weakly supported
-        statements to the user.
-
-
-        This operation does not modify anything.
+      description: Re-checks each cited statement in a content draft against its source passage, flagging
+        unsupported/weakly-supported statements and unsafe absolute language. Use before
+        recommending publication; always surface flagged statements. Does not modify anything.
       tags:
         - content
       x-risk-level: low
@@ -2860,20 +2631,10 @@ paths:
     post:
       operationId: requestActionConfirmation
       summary: Request a server-issued confirmation for a high-risk action
-      description: >-
-        Issues a confirmation record for a specific action, resource set and payload, returning a
-        required confirmation phrase and an expiry time.
-
-
-        Call this before any high-risk or critical action -- archiving, bulk operations, merges, or
-        changing an approved clinical claim. Present the exact summary this returns to the user
-        verbatim, obtain their explicit agreement, then call confirmAction, then retry the original
-        operation with the returned confirmation_id.
-
-
-        The confirmation is bound to this exact resource set and payload; it cannot be reused for a
-        different action or a different set of records. This operation writes a confirmation record
-        but does not perform the underlying action.
+      description: Issues a confirmation record (phrase + expiry) for a high-risk/critical action. Show
+        the user the exact returned summary, get explicit agreement, then call confirmAction, then
+        retry the original operation with the confirmation_id. Bound to this exact resource set and
+        payload.
       tags:
         - confirmations
       x-risk-level: low
@@ -2934,15 +2695,9 @@ paths:
     post:
       operationId: confirmAction
       summary: Confirm a previously requested high-risk action
-      description: >-
-        Marks a confirmation as confirmed after the user has explicitly agreed, by supplying the
-        exact required phrase.
-
-
-        Only call this after the user has been shown the confirmation summary and has clearly
-        agreed. Do not fabricate or guess the phrase -- use exactly what requestActionConfirmation
-        returned. Once confirmed, use the confirmation_id with the original operation; it can only
-        be used once.
+      description: Marks a confirmation as confirmed using the exact phrase requestActionConfirmation
+        returned -- never guess or paraphrase it. Call only after the user has clearly agreed to the
+        shown summary. The confirmation_id can then be used once with the original operation.
       tags:
         - confirmations
       x-risk-level: low
@@ -2991,14 +2746,9 @@ paths:
     get:
       operationId: getMyActionHistory
       summary: See what has been done on the current user's behalf, including by this GPT
-      description: >-
-        Returns the current user's own audit history, including everything performed on their behalf
-        by the Custom GPT, the dashboard assistant or the API. Available to any authenticated user
-        without requiring audit.read.
-
-
-        Use this when the user asks what you changed, or wants to review recent actions taken on
-        their behalf. This operation does not modify anything.
+      description: Returns the current user's own audit history, including everything done on their behalf
+        by this GPT, the dashboard, or the API. Use when asked what changed. Does not modify
+        anything.
       tags:
         - audit
       x-risk-level: low
@@ -3071,39 +2821,11 @@ paths:
                 $ref: "#/components/schemas/Error"
 components:
   securitySchemes:
-    OAuth2:
-      type: oauth2
-      description: User-specific access via the authorization code flow (with PKCE).
-      flows:
-        authorizationCode:
-          authorizationUrl: https://research.nirogbhoomi.com/oauth/authorize
-          tokenUrl: https://research.nirogbhoomi.com/oauth/token
-          scopes:
-            profile.read: profile read
-            knowledge.read: knowledge read
-            source.read: source read
-            source.write: source write
-            source.review: source review
-            collection.read: collection read
-            collection.write: collection write
-            taxonomy.read: taxonomy read
-            taxonomy.write: taxonomy write
-            claim.read: claim read
-            claim.write: claim write
-            claim.review: claim review
-            annotation.read: annotation read
-            annotation.write: annotation write
-            research.run: research run
-            brief.read: brief read
-            brief.write: brief write
-            content.generate: content generate
-            audit.read: audit read
-            admin.integrations: admin integrations
     ApiKey:
       type: http
       scheme: bearer
-      description: Prototype credential (prefix nbgpt_) that acts as a constrained, pre-authorized user.
-        Use OAuth2 for production deployments.
+      description: Credential (prefix nbgpt_) that acts as a constrained, pre-authorized user, created via
+        Settings -> Connect a Custom GPT.
   schemas:
     Error:
       type: object

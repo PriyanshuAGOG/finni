@@ -52,6 +52,8 @@ export const findSimilarCategoriesOperation = defineOperation({
   description: `Checks whether a proposed category name (and optional parent) is a likely duplicate of an existing one, comparing normalized names and declared synonyms.
 
 Call this before createCategory whenever the user asks to create a category. A similarity of 0.9 or higher generally means an existing category should be used instead. This operation does not modify anything.`,
+  gptDescription:
+    "Checks whether a proposed category name/parent duplicates an existing one. Call before createCategory. Similarity >=0.9 generally means use the existing category instead. Does not modify anything.",
   tags: ['taxonomy'],
   permission: 'taxonomy.read',
   scopes: ['taxonomy.read'],
@@ -81,6 +83,8 @@ Always call findSimilarCategories first. If a likely duplicate exists (similarit
 If a duplicate exists and allow_duplicate is not set, this returns CONFLICT with the matching categories rather than creating a near-duplicate silently.
 
 This operation writes.`,
+  gptDescription:
+    "Creates a taxonomy category. Always call findSimilarCategories first -- if a likely duplicate exists (>=0.9), recommend it instead unless the user explicitly confirms a distinct category is needed (allow_duplicate: true). Writes.",
   tags: ['taxonomy'],
   permission: 'taxonomy.create',
   scopes: ['taxonomy.write'],
