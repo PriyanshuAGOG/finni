@@ -1,0 +1,45 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { requireSessionContext } from '../lib/session';
+import { inviteMember, revokeInvitation } from '../../services/team';
+import { isApiError } from '../../lib/errors';
+
+export interface InviteMemberState {
+  error: string | null;
+  success: string | null;
+}
+
+export async function inviteMemberAction(
+  _prev: InviteMemberState,
+  formData: FormData,
+): Promise<InviteMemberState> {
+  const ctx = await requireSessionContext();
+  const email = String(formData.get('email') ?? '').trim();
+  const fullName = String(formData.get('full_name') ?? '').trim();
+  const roleSlug = String(formData.get('role_slug') ?? '');
+
+  if (!email || !fullName || !roleSlug) {
+    return { error: 'Name, email and role are all required.', success: null };
+  }
+
+  try {
+    const result = await inviteMember(ctx, { email, fullName, roleSlug });
+    revalidatePath('/settings');
+    if (result.email_sent) {
+      return { error: null, success: `Invitation sent to ${email}.` };
+    }
+    return {
+      error: null,
+      success: `Invitation created for ${email}, but the email could not be sent. Share this link directly: ${result.accept_url}`,
+    };
+  } catch (err) {
+    return { error: isApiError(err) ? err.message : 'The invitation could not be created.', success: null };
+  }
+}
+
+export async function revokeInvitationAction(invitationId: string): Promise<void> {
+  const ctx = await requireSessionContext();
+  await revokeInvitation(ctx, invitationId);
+  revalidatePath('/settings');
+}

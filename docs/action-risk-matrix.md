@@ -29,6 +29,7 @@ Some operations escalate risk dynamically (a batch above the configured threshol
 | `cancelResearchJob` | POST `/research-jobs/{researchJobId}/cancel` | **medium** | Yes | research.run | — |
 | `changeSourceReviewStatus` | POST `/sources/{sourceId}/review-status` | **medium** | Yes | — | — |
 | `createCategory` | POST `/categories` | **medium** | — | taxonomy.create | — |
+| `inviteMember` | POST `/team/invitations` | **medium** | — | user.manage | Yes |
 | `mergeTags` | POST `/tags/merge` | **medium** | Yes | taxonomy.merge | — |
 | `moveCategory` | POST `/categories/{categoryId}/move` | **medium** | — | taxonomy.update | — |
 | `refreshSmartCollection` | POST `/collections/{collectionId}/refresh` | **medium** | — | collection.update | — |
@@ -44,6 +45,7 @@ Some operations escalate risk dynamically (a batch above the configured threshol
 | `restoreCollection` | POST `/collections/{collectionId}/restore` | **medium** | — | collection.update | — |
 | `restoreSource` | POST `/sources/{sourceId}/restore` | **medium** | — | source.restore | — |
 | `reviewClaim` | POST `/claims/{claimId}/review` | **medium** | — | claim.review | — |
+| `revokeInvitation` | POST `/team/invitations/{invitationId}/revoke` | **medium** | — | user.manage | Yes |
 | `submitBriefForReview` | POST `/briefs/{briefId}/submit-review` | **medium** | — | brief.update | — |
 | `updateAnnotation` | PATCH `/annotations/{annotationId}` | **medium** | — | — | — |
 | `updateBriefSources` | POST `/briefs/{briefId}/sources` | **medium** | — | brief.update | — |
@@ -96,6 +98,8 @@ Some operations escalate risk dynamically (a batch above the configured threshol
 | `listCategories` | GET `/categories` | **low** | — | taxonomy.read | — |
 | `listCollections` | GET `/collections` | **low** | — | collection.read | — |
 | `listIntegrations` | GET `/admin/integrations` | **low** | — | integration.manage | Yes |
+| `listMembers` | GET `/team/members` | **low** | — | — | Yes |
+| `listPendingInvitations` | GET `/team/invitations` | **low** | — | user.manage | Yes |
 | `listProcessingJobs` | GET `/processing-jobs` | **low** | — | source.read | — |
 | `listResearchBriefs` | GET `/briefs` | **low** | — | brief.read | — |
 | `listResearchCandidates` | GET `/research-jobs/{researchJobId}/candidates` | **low** | — | research.run | — |

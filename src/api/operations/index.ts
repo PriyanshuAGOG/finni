@@ -17,6 +17,7 @@ import './confirmations';
 import './audit';
 import './files';
 import './admin';
+import './team';
 
 let registered = false;
 
