@@ -1,0 +1,52 @@
+name: Admin tasks
+
+# Manual, one-off operational scripts (Appwrite bucket provisioning,
+# creating the first administrator) that need a real network connection
+# to the database/Appwrite -- this runs on GitHub's own runners, not on
+# any developer machine, so nothing needs to be downloaded or installed
+# locally. Trigger from the Actions tab -> "Admin tasks" -> "Run workflow".
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Which script to run'
+        required: true
+        type: choice
+        options:
+          - appwrite-provision
+          - bootstrap-admin
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Provision the Appwrite storage bucket
+        if: inputs.task == 'appwrite-provision'
+        run: npm run appwrite:provision
+        env:
+          STORAGE_DRIVER: appwrite
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APPWRITE_ENDPOINT: ${{ secrets.APPWRITE_ENDPOINT }}
+          APPWRITE_PROJECT_ID: ${{ secrets.APPWRITE_PROJECT_ID }}
+          APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+          APPWRITE_BUCKET_ID: ${{ secrets.APPWRITE_BUCKET_ID }}
+
+      - name: Create the organization and first administrator
+        if: inputs.task == 'bootstrap-admin'
+        run: npm run bootstrap:admin
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ORG_NAME: ${{ secrets.ORG_NAME }}
+          ORG_SLUG: ${{ secrets.ORG_SLUG }}
+          ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}

@@ -64,6 +64,8 @@ This is only for file storage — original ingested documents and page snapshots
 
 If `STORAGE_DRIVER=appwrite` is set without `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID` and `APPWRITE_API_KEY` all present, the app refuses to boot with a clear `Invalid environment configuration` error rather than failing later on the first ingest.
 
+**No local machine to run this from?** `.github/workflows/admin-tasks.yml` runs `appwrite:provision` and `bootstrap:admin` (below) on GitHub's own runners — nothing to install or download. One-time setup: repo → **Settings → Secrets and variables → Actions** → add secrets `DATABASE_URL`, `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `APPWRITE_BUCKET_ID` (and, for the admin bootstrap, `ORG_NAME`, `ORG_SLUG`, `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`). Then **Actions tab → "Admin tasks" → Run workflow**, pick the task, run.
+
 ## 2b. Email (team invitations)
 
 Inviting a teammate (Settings → Team, or the `inviteMember` operation) emails them a link to set a password and activate their account. `EMAIL_PROVIDER=console` (default) just logs the email server-side instead of sending it — fine for local dev, not for production. For production, set:
@@ -110,6 +112,8 @@ npm run bootstrap:admin
 ```
 
 Safe to re-run: with the same `ORG_SLUG` and `ADMIN_EMAIL` it updates the existing admin's name and password rather than erroring, so it doubles as a password reset if you ever need one. Every other teammate should be added afterward via Settings → Team (or `inviteMember`) rather than by running this script again, so each account is properly attributed to whoever invited them.
+
+No local machine handy? Same `.github/workflows/admin-tasks.yml` covers this too — see "No local machine to run this from?" under the Appwrite section above.
 
 ```bash
 npm run db:seed             # optional: realistic sample data for evaluation/demo only

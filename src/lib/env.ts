@@ -86,14 +86,20 @@ const schema = z.object({
   APPWRITE_PROJECT_ID: z.string().optional(),
   /** Server-side secret. Never expose to the client; never prefix NEXT_PUBLIC_. */
   APPWRITE_API_KEY: z.string().optional(),
-  APPWRITE_BUCKET_ID: z.string().default('research_os_sources'),
+  APPWRITE_BUCKET_ID: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().default('research_os_sources'),
+  ),
 
   /**
    * "console" (default) logs the email instead of sending it -- fine for
    * local dev, useless in production. "resend" sends via the Resend API.
    */
   EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
-  EMAIL_FROM: z.string().default('Nirog Bhoomi Research OS <onboarding@resend.dev>'),
+  EMAIL_FROM: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().default('Nirog Bhoomi Research OS <onboarding@resend.dev>'),
+  ),
   /** Server-side secret. Required when EMAIL_PROVIDER=resend. */
   RESEND_API_KEY: z.string().optional(),
   INVITATION_TTL_HOURS: z.coerce.number().int().positive().default(168),
