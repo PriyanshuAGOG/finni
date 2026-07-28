@@ -24,6 +24,52 @@ registerOperations();
 
 const OUT_DIR = join(process.cwd(), 'openapi');
 
+/**
+ * ChatGPT's Custom GPT Actions editor caps a single GPT at 30 operations
+ * -- far fewer than the full registry. This is the curated subset that
+ * ships in openapi/gpt-actions.yaml: every operationId referenced by
+ * name in docs/gpt-instructions.md (so the GPT's own instructions never
+ * point at a tool it doesn't have), plus the minimum extra read/write
+ * operations needed for search, save, taxonomy, collections, claims,
+ * review and briefs to actually function end to end. Admin operations
+ * (team, integrations, audit browsing) stay internalOnly regardless --
+ * a full research/knowledge workflow was the priority for the 30 slots,
+ * not exhaustiveness. Split into a second GPT (e.g. a review/admin
+ * assistant) if more coverage is needed; see docs/gpt-setup-guide.md.
+ */
+const CORE_GPT_ACTIONS = new Set([
+  'getCurrentUser',
+  'searchKnowledge',
+  'synthesizeKnowledge',
+  'findEvidence',
+  'compareSources',
+  'searchSourcePassages',
+  'getSource',
+  'listSources',
+  'ingestUrl',
+  'ingestIdentifier',
+  'createSource',
+  'findSimilarCategories',
+  'createCategory',
+  'listCollections',
+  'createCollection',
+  'addSourceToCollections',
+  'createClaim',
+  'addClaimEvidence',
+  'reviewClaim',
+  'analyzeClaimConflicts',
+  'changeSourceReviewStatus',
+  'generateResearchBrief',
+  'generateEvidenceBasedContent',
+  'validateContentCitations',
+  'previewExternalResearch',
+  'startResearchJob',
+  'selectResearchCandidates',
+  'requestActionConfirmation',
+  'confirmAction',
+  'getMyActionHistory',
+]);
+
 const SERVERS = [
   { url: 'https://research.nirogbhoomi.com/api/v1', description: 'Production' },
   { url: 'http://localhost:3000/api/v1', description: 'Local development' },
@@ -339,8 +385,20 @@ async function main() {
   await mkdir(OUT_DIR, { recursive: true });
 
   const full = buildDocument(operations, false);
-  const gptOperations = operations.filter((o) => !o.internalOnly);
+  const gptOperations = operations.filter((o) => !o.internalOnly && CORE_GPT_ACTIONS.has(o.operationId));
   const gptFacing = buildDocument(gptOperations, true);
+
+  const missingCoreActions = [...CORE_GPT_ACTIONS].filter(
+    (id) => !operations.some((o) => o.operationId === id),
+  );
+  if (missingCoreActions.length > 0) {
+    console.error(`CORE_GPT_ACTIONS references unknown operationId(s): ${missingCoreActions.join(', ')}`);
+    process.exit(1);
+  }
+  if (gptOperations.length > 30) {
+    console.error(`gpt-actions.yaml has ${gptOperations.length} operations; ChatGPT caps a single GPT at 30.`);
+    process.exit(1);
+  }
 
   await writeFile(join(OUT_DIR, 'full.yaml'), YAML.stringify(full, { lineWidth: 100 }), 'utf8');
   await writeFile(
@@ -350,7 +408,7 @@ async function main() {
   );
 
   console.log(`Wrote openapi/full.yaml (${operations.length} operations).`);
-  console.log(`Wrote openapi/gpt-actions.yaml (${gptOperations.length} operations, ${operations.length - gptOperations.length} excluded as internal-only).`);
+  console.log(`Wrote openapi/gpt-actions.yaml (${gptOperations.length} operations -- curated to stay within ChatGPT's 30-action cap).`);
 }
 
 main().catch((err) => {

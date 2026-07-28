@@ -52,12 +52,12 @@ A single credential acts as one pre-authorized, constrained user. Do not use thi
 
 ## 3. Import the Action schema
 
-1. In the GPT editor → **Actions** → **Create new action** → **Import from URL** (or paste the contents of `openapi/gpt-actions.yaml`).
+1. Import by URL (`https://<your-deployment>/gpt-actions.yaml`) or paste the contents of `openapi/gpt-actions.yaml` directly.
 2. Verify the servers block points at your deployment, not `localhost`.
-3. ChatGPT's Actions UI has historically capped the number of operations a single GPT can expose (roughly 30 at various points — check the current limit in OpenAI's docs, as this changes). `openapi/gpt-actions.yaml` currently contains ~96 operations. If you hit the cap:
-   - Split into multiple GPT Actions (e.g., one for search/retrieval, one for write operations), or
-   - Trim `openapi/gpt-actions.yaml` to the operations your team actually needs day to day (the `x-required-scopes` and `x-risk-level` fields on each operation make it easy to select a coherent subset), or
-   - Re-run `npm run openapi:generate` after marking additional operations `internalOnly: true` in `src/api/operations/*.ts` for anything you want excluded.
+
+ChatGPT's Actions editor caps a single GPT at **30 operations**. The registry has 109; `openapi/gpt-actions.yaml` ships a curated 30-operation subset (search, save, taxonomy, collections, claims, review, briefs, content, confirmations — every tool `docs/gpt-instructions.md` names by ID, plus the minimum extra reads/writes needed for a full research workflow). Admin operations (team, integrations, audit browsing) stay dashboard-only regardless of the cap.
+
+To change which 30 are included, edit `CORE_GPT_ACTIONS` in `scripts/generate-openapi.ts` and re-run `npm run openapi:generate` — it fails loudly if the curated set exceeds 30 or references an operationId that doesn't exist. To cover more ground than one GPT allows, create a second Custom GPT pointed at a different curated set (e.g. a "Review & Admin" GPT) rather than trying to fit everything into one.
 
 ## 4. Paste the instructions
 
