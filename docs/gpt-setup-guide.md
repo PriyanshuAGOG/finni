@@ -27,7 +27,7 @@ Each person using the GPT authenticates as themselves; the GPT can only do what 
    );
    ```
    (Omit `admin.integrations` unless the GPT should be able to manage other integrations — it generally shouldn't.)
-2. The `/oauth/authorize` and `/oauth/token` endpoints are already implemented (`src/app/api/oauth/authorize/route.ts`, `src/app/api/oauth/token/route.ts`), backed by the OAuth2 + PKCE flow in `src/services/auth.ts`. `/oauth/authorize` requires an existing dashboard session — a user signs in as themselves once, and the resulting token can only ever act with their own permissions.
+2. The `/oauth/authorize`, `/oauth/token` and `/oauth/revoke` endpoints are already implemented (`src/app/api/oauth/{authorize,token,revoke}/route.ts`), backed by the OAuth2 + PKCE flow in `src/services/auth.ts`. `/oauth/authorize` requires an existing dashboard session — a user signs in as themselves once, and the resulting token can only ever act with their own permissions.
 3. In the GPT editor → **Configure** → **Actions** → **Authentication**: choose **OAuth**, set the Client ID / Secret from step 1, Authorization URL `https://<your-domain>/oauth/authorize`, Token URL `https://<your-domain>/oauth/token`, and the scope list from step 1.
 
 ### Path B — API key prototype (fastest to stand up; internal use only)
@@ -82,5 +82,5 @@ See `docs/api-scope-matrix.md` for the full scope-to-permission mapping, and `do
 
 ## 7. Rotating or revoking access
 
-- OAuth: revoke via `revokeToken` (refresh or access token) or expire the `oauth_clients` row's status.
+- OAuth: revoke a single user's access by POSTing to `/oauth/revoke` with `token=<access_or_refresh_token>` (RFC 7009 — either token type works, the endpoint matches whichever hash exists). To cut off every user of the integration at once, expire the `oauth_clients` row's status instead.
 - API key prototype: call `revokeApiClient` (critical risk, requires administrator confirmation). Issue a new key with `createApiClient` if the integration is still needed — the old key cannot be recovered or reactivated.

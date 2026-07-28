@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
 /**
+ * `.env.example` ships several optional keys blank (`KEY=`), and the docs
+ * tell you to copy it straight to `.env`. That means "unset" arrives as
+ * `""`, not `undefined` -- which `.optional()` alone does not absorb, so a
+ * field with an extra constraint (`.url()`, `.min()`) would fail
+ * validation on a value the file explicitly ships as empty. Blank first.
+ */
+const emptyToUndefined = z.literal('').transform(() => undefined);
+
+/**
  * Environment validation. Fails fast at boot rather than at the first
  * request that happens to need a missing variable.
  */
@@ -18,12 +27,15 @@ const schema = z.object({
   MIGRATION_DATABASE_URL: z.string().optional(),
   DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
 
-  APP_BASE_URL: z.string().url().default('http://localhost:3000'),
+  APP_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().default('http://localhost:3000'),
+  ),
   SESSION_COOKIE_NAME: z.string().default('nbros_session'),
   SESSION_TTL_HOURS: z.coerce.number().int().positive().default(720),
 
   /** 32-byte key, hex or base64, used to encrypt integration credentials. */
-  ENCRYPTION_KEY: z.string().min(32).optional(),
+  ENCRYPTION_KEY: z.union([emptyToUndefined, z.string().min(32)]).optional(),
 
   /**
    * AI provider selection. `deterministic` is a real, self-contained
@@ -33,7 +45,7 @@ const schema = z.object({
    */
   AI_PROVIDER: z.enum(['anthropic', 'openai', 'deterministic']).default('deterministic'),
   AI_API_KEY: z.string().optional(),
-  AI_BASE_URL: z.string().url().optional(),
+  AI_BASE_URL: z.union([emptyToUndefined, z.string().url()]).optional(),
 
   // Model names are configuration, never hard-coded at call sites.
   AI_MODEL_FAST: z.string().default('claude-haiku-4-5-20251001'),
@@ -48,7 +60,10 @@ const schema = z.object({
    */
   AI_EMBEDDING_PROVIDER: z.enum(['openai', 'deterministic']).default('deterministic'),
   AI_EMBEDDING_API_KEY: z.string().optional(),
-  AI_EMBEDDING_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
+  AI_EMBEDDING_BASE_URL: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().url().default('https://api.openai.com/v1'),
+  ),
 
   /** External discovery provider for research jobs. */
   SEARCH_PROVIDER: z.enum(['none', 'brave', 'tavily']).default('none'),
