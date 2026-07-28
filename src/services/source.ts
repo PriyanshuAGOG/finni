@@ -51,6 +51,7 @@ export interface SourceSummary {
   last_verified_at: string | null;
   created_at: string;
   updated_at: string;
+  categories: Array<{ id: string; name: string }>;
   dashboard_url?: string;
 }
 
@@ -62,7 +63,10 @@ const SUMMARY_COLUMNS = `
   s.key_findings, s.limitations, s.safety_notes, s.word_count,
   s.reading_time_minutes, s.version, s.locked_fields, s.retraction_status,
   s.assigned_reviewer_id, s.added_by, s.approved_at, s.last_verified_at,
-  s.created_at, s.updated_at
+  s.created_at, s.updated_at,
+  (SELECT coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'name', c.name) ORDER BY c.name), '[]'::jsonb)
+   FROM source_categories sc JOIN categories c ON c.id = sc.category_id
+   WHERE sc.source_id = s.id) AS categories
 `;
 
 export function withDashboardUrl<T extends { id: string }>(row: T): T & { dashboard_url: string } {

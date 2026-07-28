@@ -3,12 +3,12 @@ import { notFound } from 'next/navigation';
 import { requireSessionContext } from '../../../lib/session';
 import { getSource } from '../../../../services/source';
 import { ApiError } from '../../../../lib/errors';
-import { ReviewStatusBadge, ProcessingStatusBadge, SourceTypeBadge } from '../../../../components/badges';
-import { ReviewActions } from './review-actions';
+import { ProcessingStatusBadge, SourceTypeBadge } from '../../../../components/badges';
+import { SourceActions } from './review-actions';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
-  { key: 'reader', label: 'Reader' },
+  { key: 'reader', label: 'Read article' },
   { key: 'claims', label: 'Claims' },
   { key: 'study', label: 'Study data' },
   { key: 'annotations', label: 'Annotations' },
@@ -59,25 +59,29 @@ export default async function SourceDetailPage({
             <h1 className="text-xl font-semibold text-slate-900">{String(source.title)}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
               <SourceTypeBadge type={String(source.source_type)} />
-              <ReviewStatusBadge status={String(source.review_status)} />
               <ProcessingStatusBadge status={String(source.processing_status)} />
               {source.publisher ? <span>{String(source.publisher)}</span> : null}
               {source.publication_date ? (
                 <span>{new Date(String(source.publication_date)).getFullYear()}</span>
               ) : null}
             </div>
+          </div>
+          <div className="flex items-center gap-2">
             {source.canonical_url ? (
               <a
                 href={String(source.canonical_url)}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-1 inline-block text-xs text-brand-600 hover:underline"
+                className="btn btn-secondary"
               >
-                {String(source.canonical_url)}
+                Open original article ↗
               </a>
             ) : null}
+            <Link href={`/library/${sourceId}?tab=reader`} className="btn btn-primary">
+              Read in dashboard
+            </Link>
+            <SourceActions sourceId={sourceId} title={String(source.title)} />
           </div>
-          <ReviewActions sourceId={sourceId} reviewStatus={String(source.review_status)} />
         </div>
       </div>
 

@@ -16,6 +16,7 @@
     "bootstrap:admin": "tsx scripts/bootstrap-admin.ts",
     "db:list-users": "tsx scripts/list-users.ts",
     "db:list-api-clients": "tsx scripts/list-api-clients.ts",
+    "db:seed-categories": "tsx scripts/seed-categories.ts",
     "docs:generate": "tsx scripts/generate-docs.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

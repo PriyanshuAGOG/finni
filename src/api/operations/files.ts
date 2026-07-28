@@ -23,6 +23,7 @@ This operation writes. The created source is approved immediately.`,
     collection_ids: z.array(z.string().uuid()).optional(),
     category_ids: z.array(z.string().uuid()).optional(),
     tags: z.array(z.string()).optional(),
+    summary: z.string().max(4000).optional().describe('A concise summary to store immediately.'),
   }),
   handler: async (input, { ctx }) => {
     if (!input.file) throw invalidInput('A file is required.');
@@ -34,6 +35,7 @@ This operation writes. The created source is approved immediately.`,
       collectionIds: input.collection_ids,
       categoryIds: input.category_ids,
       tags: input.tags,
+      summary: input.summary,
     });
   },
 });

@@ -704,8 +704,9 @@ paths:
     post:
       operationId: createSource
       summary: Create a source from supplied text rather than a URL
-      description: Creates a source from text you already have (pasted article, manual note, no fetchable
-        URL). For a URL use ingestUrl instead. Writes; approved immediately.
+      description: Creates a source from text you already have -- pasted article, manual note, or an
+        article you read yourself after ingestUrl failed (paywalled/bot-blocked). Pass summary and
+        categories. Writes; approved immediately.
       tags:
         - sources
         - ingestion
@@ -777,6 +778,12 @@ paths:
                       items:
                         type: string
                         format: uuid
+                summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      maxLength: 4000
+                  description: A concise summary to store immediately.
               required:
                 - title
                 - text
@@ -1134,10 +1141,10 @@ paths:
     post:
       operationId: ingestUrl
       summary: Save one URL to the library and queue enrichment
-      description: Fetches a URL, extracts content, checks duplicates, creates a source and queues
-        enrichment. Approved immediately (no review queue) -- mention extraction warnings if
-        present. On DUPLICATE_SOURCE, tell the user what exists and ask whether to open it, save
-        related, or version it. Writes.
+      description: Fetches a URL, extracts content, checks duplicates, creates a source, queues
+        enrichment. Approved immediately. Pass summary and category_ids -- always categorize. On
+        DUPLICATE_SOURCE, offer options. On fetch failure (paywalled/bot-blocked), read it yourself
+        and use createSource. Writes.
       tags:
         - sources
         - ingestion
@@ -1227,6 +1234,12 @@ paths:
                         - restricted
                         - organization
                         - selected_collections
+                summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      maxLength: 4000
+                  description: A concise summary to store immediately.
               required:
                 - url
             example:
@@ -1309,6 +1322,12 @@ paths:
                     - type: array
                       items:
                         type: string
+                summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      maxLength: 4000
+                  description: A concise summary to store immediately.
               required: []
       parameters:
         - name: Idempotency-Key

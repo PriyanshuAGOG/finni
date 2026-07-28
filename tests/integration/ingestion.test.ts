@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestOrg, destroyTestOrg, type TestOrg } from './fixtures';
 import { createManualSource, ingestUrlsBatch } from '../../src/services/ingestion';
+import { getSource } from '../../src/services/source';
+import { withOrg } from '../../src/lib/db';
 import { ApiError } from '../../src/lib/errors';
 
 let org: TestOrg;
@@ -33,6 +35,25 @@ describe('source creation', () => {
     await expect(
       createManualSource(org.viewerCtx, { title: 'Viewer attempt', text: 'Text long enough to pass.' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('stores a caller-supplied summary immediately and skips the async summarize job', async () => {
+    const result = await createManualSource(org.adminCtx, {
+      title: 'A source with a caller-supplied summary',
+      text: 'Intermittent fasting protocols vary widely in eating-window length and were compared across twelve trials.',
+      summary: 'A review of twelve trials found intermittent fasting protocols vary widely in eating-window length.',
+    });
+
+    const source = await getSource(org.adminCtx, result.source_id, {});
+    expect(source.ai_summary_short).toContain('twelve trials');
+
+    const jobs = await withOrg(org.organizationId, (sql) =>
+      sql.query<{ job_type: string }>(
+        `SELECT job_type FROM processing_jobs WHERE source_id = $1`,
+        [result.source_id],
+      ),
+    );
+    expect(jobs.some((j) => j.job_type === 'summarize')).toBe(false);
   });
 });
 

@@ -47,6 +47,8 @@ export interface IngestUrlInput {
   duplicateBehavior?: DuplicateBehavior;
   processingProfile?: 'standard' | 'metadata_only' | 'full';
   visibility?: string;
+  /** A caller-supplied summary, stored immediately instead of waiting for the async summarize job. */
+  summary?: string | null;
 }
 
 export interface IngestResult {
@@ -127,6 +129,7 @@ export async function ingestUrl(ctx: ActorContext, input: IngestUrlInput): Promi
     priority: input.priority,
     processingProfile: input.processingProfile,
     visibility: input.visibility,
+    summary: input.summary,
   });
 }
 
@@ -194,7 +197,14 @@ export async function ingestUrlsBatch(
 
 export async function ingestIdentifier(
   ctx: ActorContext,
-  input: { doi?: string; pmid?: string; collectionIds?: string[]; categoryIds?: string[]; tags?: string[] },
+  input: {
+    doi?: string;
+    pmid?: string;
+    collectionIds?: string[];
+    categoryIds?: string[];
+    tags?: string[];
+    summary?: string | null;
+  },
 ): Promise<IngestResult> {
   requirePermission(ctx, 'source.create');
 
@@ -214,6 +224,7 @@ export async function ingestIdentifier(
     categoryIds: input.categoryIds,
     tags: input.tags,
     duplicateBehavior: 'return_existing',
+    summary: input.summary,
   });
 }
 
@@ -231,6 +242,7 @@ export interface CreateManualSourceInput {
   collectionIds?: string[];
   visibility?: string;
   skipEnrichment?: boolean;
+  summary?: string | null;
 }
 
 export async function createManualSource(
@@ -264,6 +276,7 @@ export async function createManualSource(
     collectionIds: input.collectionIds,
     visibility: input.visibility,
     skipEnrichment: input.skipEnrichment,
+    summary: input.summary,
   });
 }
 
@@ -276,6 +289,7 @@ export async function ingestFile(
     collectionIds?: string[];
     categoryIds?: string[];
     tags?: string[];
+    summary?: string | null;
   },
 ): Promise<IngestResult> {
   requirePermission(ctx, 'source.create');
@@ -342,6 +356,7 @@ export async function ingestFile(
     collectionIds: input.collectionIds,
     categoryIds: input.categoryIds,
     tags: input.tags,
+    summary: input.summary,
     fileMetadata: {
       file_hash: fileHash,
       original_filename: sanitizeFilename(input.filename),
@@ -389,6 +404,8 @@ interface CreateFromExtractionInput {
   visibility?: string;
   fileMetadata?: Record<string, unknown>;
   skipEnrichment?: boolean;
+  /** A caller-supplied summary, stored immediately instead of waiting for the async summarize job. */
+  summary?: string | null;
 }
 
 async function createFromExtraction(
@@ -401,6 +418,7 @@ async function createFromExtraction(
   const normalizedHash = normalizedContentHash(text);
   const simhashValue = simhash(text);
   const warnings = [...extraction.warnings];
+  const providedSummary = input.summary?.trim() || null;
 
   return withOrg(ctx.organizationId, async (sql) => {
     // Full duplicate check now that the content is known.
@@ -446,11 +464,13 @@ async function createFromExtraction(
          reading_time_minutes, thumbnail_url, favicon_url, review_status,
          processing_status, visibility, duplicate_status, duplicate_of_source_id,
          extraction_confidence, content_hash, normalized_content_hash, simhash,
-         added_via, added_by, created_by, updated_by, assigned_reviewer_id, metadata
+         added_via, added_by, created_by, updated_by, assigned_reviewer_id, metadata,
+         ai_summary_short, ai_summary_detailed
        ) VALUES (
          $1,$2,$3,$4::source_type,$5,$6,$7,$8,$9,$10,$11,$12,$13,now(),$14,$15,$16,$17,$18,
          $19,$20,$21,$22::review_status,'queued'::processing_status,$23::visibility_level,
-         $24::duplicate_status,$25,$26,$27,$28,$29,$30::source_interface,$31,$31,$31,$32,$33
+         $24::duplicate_status,$25,$26,$27,$28,$29,$30::source_interface,$31,$31,$31,$32,$33,
+         $34,$35
        )
        RETURNING id, title`,
       [
@@ -497,6 +517,8 @@ async function createFromExtraction(
           extraction_warnings: warnings,
           page_offsets: extraction.pageOffsets ?? null,
         }),
+        providedSummary ? truncate(providedSummary, 4000) : null,
+        providedSummary,
       ],
     );
 
@@ -570,10 +592,14 @@ async function createFromExtraction(
 
     let processingJobId: string | null = null;
     if (!input.skipEnrichment) {
-      const stages =
+      const baseStages =
         input.processingProfile === 'metadata_only'
           ? (['summarize', 'embeddings'] as const)
           : ENRICHMENT_STAGES.filter((s) => s !== 'extract');
+      // A summary supplied at creation time replaces what this stage would
+      // have produced -- running it anyway would just overwrite it a few
+      // seconds later.
+      const stages = providedSummary ? baseStages.filter((s) => s !== 'summarize') : baseStages;
 
       for (const stage of stages) {
         const job = await enqueue(sql, ctx, {
@@ -619,7 +645,7 @@ async function createFromExtraction(
       dashboard_url: `/library/${sourceId}`,
       message: input.skipEnrichment
         ? `Added "${truncate(row!.title, 80)}" to the library.`
-        : `Added "${truncate(row!.title, 80)}" to the library. Enrichment is queued.`,
+        : `Added "${truncate(row!.title, 80)}" to the library.${providedSummary ? ' Summary stored.' : ''} Enrichment is queued.`,
     };
   });
 }

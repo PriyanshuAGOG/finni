@@ -855,9 +855,14 @@ paths:
         internal document, or a citation with no retrievable URL.
 
 
-        Use this when there is no URL to fetch, or when the publisher blocks automated access and
-        the user has supplied the text. For a URL, use ingestUrl instead: it captures the original
-        and its metadata.
+        Use this when there is no URL to fetch, when the publisher blocks automated access and
+        you've read the article yourself (paywalled or bot-blocking sites like the New York Times or
+        WSJ), or when the user has supplied the text.
+
+
+        Pass `summary` with a concise summary and `categories` with the best-fitting category id
+        (create one with createCategory if none fits) -- for a URL, use ingestUrl instead: it
+        captures the original and its metadata.
 
 
         This operation writes. The created source is approved immediately.
@@ -932,6 +937,12 @@ paths:
                       items:
                         type: string
                         format: uuid
+                summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      maxLength: 4000
+                  description: A concise summary to store immediately.
               required:
                 - title
                 - text
@@ -1402,9 +1413,20 @@ paths:
         them if they're present.
 
 
+        Pass `summary` with a concise summary you write from the extracted content, so it's stored
+        immediately rather than waiting for the async summarize job. Always supply `category_ids` --
+        find the best-fitting category (create one with createCategory if none fits) so nothing is
+        left uncategorized.
+
+
         If a duplicate exists this returns DUPLICATE_SOURCE with the existing record; tell the user
         what already exists and ask whether to open it, save a related copy, or capture a new
         version. Do not silently create a second copy.
+
+
+        If the fetch fails (EXTRACTION_FAILED, often a 403 from a paywalled or bot-blocking
+        publisher like the New York Times or WSJ), read the article yourself and call createSource
+        with the text instead -- don't just report failure.
 
 
         This operation writes. Supply an Idempotency-Key header to make a retry safe.
@@ -1497,6 +1519,12 @@ paths:
                         - restricted
                         - organization
                         - selected_collections
+                summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      maxLength: 4000
+                  description: A concise summary to store immediately.
               required:
                 - url
             example:
@@ -1690,6 +1718,12 @@ paths:
                     - type: array
                       items:
                         type: string
+                summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      maxLength: 4000
+                  description: A concise summary to store immediately.
               required: []
       parameters:
         - name: Idempotency-Key
@@ -7585,6 +7619,12 @@ paths:
                     - type: array
                       items:
                         type: string
+                summary:
+                  anyOf:
+                    - not: {}
+                    - type: string
+                      maxLength: 4000
+                  description: A concise summary to store immediately.
               required: []
       responses:
         "200":

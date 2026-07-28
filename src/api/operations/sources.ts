@@ -177,11 +177,15 @@ Use this when the user explicitly asks to save, log or add a link, or when an ex
 
 The newly created source is approved immediately -- this deployment has no review queue. Extraction confidence and any extraction warnings still travel with the record, so mention them if they're present.
 
+Pass \`summary\` with a concise summary you write from the extracted content, so it's stored immediately rather than waiting for the async summarize job. Always supply \`category_ids\` -- find the best-fitting category (create one with createCategory if none fits) so nothing is left uncategorized.
+
 If a duplicate exists this returns DUPLICATE_SOURCE with the existing record; tell the user what already exists and ask whether to open it, save a related copy, or capture a new version. Do not silently create a second copy.
+
+If the fetch fails (EXTRACTION_FAILED, often a 403 from a paywalled or bot-blocking publisher like the New York Times or WSJ), read the article yourself and call createSource with the text instead -- don't just report failure.
 
 This operation writes. Supply an Idempotency-Key header to make a retry safe.`,
   gptDescription:
-    "Fetches a URL, extracts content, checks duplicates, creates a source and queues enrichment. Approved immediately (no review queue) -- mention extraction warnings if present. On DUPLICATE_SOURCE, tell the user what exists and ask whether to open it, save related, or version it. Writes.",
+    "Fetches a URL, extracts content, checks duplicates, creates a source, queues enrichment. Approved immediately. Pass summary and category_ids -- always categorize. On DUPLICATE_SOURCE, offer options. On fetch failure (paywalled/bot-blocked), read it yourself and use createSource. Writes.",
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -198,6 +202,7 @@ This operation writes. Supply an Idempotency-Key header to make a retry safe.`,
     duplicate_behavior: duplicateBehavior.optional(),
     processing_profile: z.enum(['standard', 'metadata_only', 'full']).optional(),
     visibility: z.enum(['private', 'restricted', 'organization', 'selected_collections']).optional(),
+    summary: z.string().max(4000).optional().describe('A concise summary to store immediately.'),
   }),
   examples: {
     request: {
@@ -218,6 +223,7 @@ This operation writes. Supply an Idempotency-Key header to make a retry safe.`,
       duplicateBehavior: input.duplicate_behavior,
       processingProfile: input.processing_profile,
       visibility: input.visibility,
+      summary: input.summary,
     }),
 });
 
@@ -279,6 +285,7 @@ This operation writes. The created source is approved immediately.`,
       collection_ids: z.array(z.string().uuid()).optional(),
       category_ids: z.array(z.string().uuid()).optional(),
       tags: z.array(z.string()).optional(),
+      summary: z.string().max(4000).optional().describe('A concise summary to store immediately.'),
     })
     .refine((v) => v.doi || v.pmid, { message: 'Either doi or pmid is required.' }),
   handler: (input, { ctx }) =>
@@ -288,6 +295,7 @@ This operation writes. The created source is approved immediately.`,
       collectionIds: input.collection_ids,
       categoryIds: input.category_ids,
       tags: input.tags,
+      summary: input.summary,
     }),
 });
 
@@ -298,11 +306,13 @@ export const createSourceOperation = defineOperation({
   summary: 'Create a source from supplied text rather than a URL',
   description: `Creates a source record from text you already have -- a manual note, pasted article text, an internal document, or a citation with no retrievable URL.
 
-Use this when there is no URL to fetch, or when the publisher blocks automated access and the user has supplied the text. For a URL, use ingestUrl instead: it captures the original and its metadata.
+Use this when there is no URL to fetch, when the publisher blocks automated access and you've read the article yourself (paywalled or bot-blocking sites like the New York Times or WSJ), or when the user has supplied the text.
+
+Pass \`summary\` with a concise summary and \`categories\` with the best-fitting category id (create one with createCategory if none fits) -- for a URL, use ingestUrl instead: it captures the original and its metadata.
 
 This operation writes. The created source is approved immediately.`,
   gptDescription:
-    'Creates a source from text you already have (pasted article, manual note, no fetchable URL). For a URL use ingestUrl instead. Writes; approved immediately.',
+    'Creates a source from text you already have -- pasted article, manual note, or an article you read yourself after ingestUrl failed (paywalled/bot-blocked). Pass summary and categories. Writes; approved immediately.',
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -320,6 +330,7 @@ This operation writes. The created source is approved immediately.`,
     categories: z.array(z.string().uuid()).optional(),
     tags: z.array(z.string()).optional(),
     collection_ids: z.array(z.string().uuid()).optional(),
+    summary: z.string().max(4000).optional().describe('A concise summary to store immediately.'),
   }),
   handler: (input, { ctx }) =>
     createManualSource(ctx, {
@@ -334,6 +345,7 @@ This operation writes. The created source is approved immediately.`,
       categoryIds: input.categories,
       tags: input.tags,
       collectionIds: input.collection_ids,
+      summary: input.summary,
     }),
 });
 

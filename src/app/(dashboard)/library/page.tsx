@@ -1,22 +1,26 @@
 import Link from 'next/link';
 import { requireSessionContext } from '../../lib/session';
 import { listSources } from '../../../services/source';
-import { ReviewStatusBadge, ProcessingStatusBadge, SourceTypeBadge } from '../../../components/badges';
+import { listCategories } from '../../../services/taxonomy';
+import { ProcessingStatusBadge, SourceTypeBadge } from '../../../components/badges';
 
 export default async function LibraryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; review_status?: string }>;
+  searchParams: Promise<{ q?: string; category_id?: string }>;
 }) {
   const ctx = await requireSessionContext();
   const resolvedSearchParams = await searchParams;
-  const result = await listSources(ctx, {
-    query: resolvedSearchParams.q || undefined,
-    reviewStatus: resolvedSearchParams.review_status ? [resolvedSearchParams.review_status] : undefined,
-    limit: 50,
-    sort: 'created_at',
-    order: 'desc',
-  });
+  const [result, topLevelCategories] = await Promise.all([
+    listSources(ctx, {
+      query: resolvedSearchParams.q || undefined,
+      categoryId: resolvedSearchParams.category_id || undefined,
+      limit: 50,
+      sort: 'created_at',
+      order: 'desc',
+    }),
+    listCategories(ctx, { parentId: null }),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -33,16 +37,12 @@ export default async function LibraryPage({
           <input id="q" name="q" defaultValue={resolvedSearchParams.q} className="input" placeholder="Title, publisher, author…" />
         </div>
         <div>
-          <label className="label" htmlFor="review_status">Review status</label>
-          <select id="review_status" name="review_status" defaultValue={resolvedSearchParams.review_status ?? ''} className="input">
+          <label className="label" htmlFor="category_id">Category</label>
+          <select id="category_id" name="category_id" defaultValue={resolvedSearchParams.category_id ?? ''} className="input">
             <option value="">All</option>
-            <option value="needs_review">Needs review</option>
-            <option value="in_review">In review</option>
-            <option value="approved">Approved</option>
-            <option value="approved_with_conditions">Approved (conditions)</option>
-            <option value="rejected">Rejected</option>
-            <option value="disputed">Disputed</option>
-            <option value="superseded">Superseded</option>
+            {topLevelCategories.categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
           </select>
         </div>
         <button type="submit" className="btn btn-primary">Filter</button>
@@ -55,7 +55,7 @@ export default async function LibraryPage({
               <th className="px-4 py-2">Title</th>
               <th className="px-4 py-2">Type</th>
               <th className="px-4 py-2">Publisher</th>
-              <th className="px-4 py-2">Review</th>
+              <th className="px-4 py-2">Category</th>
               <th className="px-4 py-2">Processing</th>
               <th className="px-4 py-2">Added</th>
             </tr>
@@ -70,7 +70,14 @@ export default async function LibraryPage({
                 </td>
                 <td className="px-4 py-2"><SourceTypeBadge type={s.source_type} /></td>
                 <td className="px-4 py-2 text-slate-500">{s.publisher ?? s.journal ?? '—'}</td>
-                <td className="px-4 py-2"><ReviewStatusBadge status={s.review_status} /></td>
+                <td className="px-4 py-2">
+                  <div className="flex flex-wrap gap-1">
+                    {s.categories.map((c) => (
+                      <span key={c.id} className="badge badge-neutral">{c.name}</span>
+                    ))}
+                    {s.categories.length === 0 && <span className="text-xs text-slate-400">Uncategorized</span>}
+                  </div>
+                </td>
                 <td className="px-4 py-2"><ProcessingStatusBadge status={s.processing_status} /></td>
                 <td className="px-4 py-2 text-slate-500">{new Date(s.created_at).toLocaleDateString()}</td>
               </tr>

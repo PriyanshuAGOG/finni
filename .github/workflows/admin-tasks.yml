@@ -18,6 +18,7 @@ on:
           - bootstrap-admin
           - list-users
           - list-api-clients
+          - seed-categories
 
 jobs:
   run:
@@ -76,3 +77,10 @@ jobs:
         run: npm run db:list-api-clients
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Seed the fixed top-level category taxonomy
+        if: inputs.task == 'seed-categories'
+        run: npm run db:seed-categories
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ORG_SLUG: ${{ secrets.ORG_SLUG }}
