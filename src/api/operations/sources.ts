@@ -42,6 +42,8 @@ export const listSourcesOperation = defineOperation({
 Use this for browsing and filtering -- "show sources awaiting review", "what did I add this week", "list everything in this collection". For relevance-ranked topic search use searchKnowledge instead; this operation does not rank by relevance to a question.
 
 This operation does not modify anything.`,
+  gptDescription:
+    'Filtered, paginated browse of sources by review/processing state. For relevance-ranked topic search use searchKnowledge instead. Does not modify anything.',
   tags: ['sources'],
   permission: 'source.read',
   scopes: ['source.read', 'knowledge.read'],
@@ -108,6 +110,8 @@ Use this when a specific source has been identified and you need its details, or
 Full text is not returned by default and is truncated when requested; use searchSourcePassages to retrieve specific passages with locators rather than pulling the whole document.
 
 This operation does not modify anything.`,
+  gptDescription:
+    'Full record for one source: metadata, review/processing state, and optionally study metadata, claims, annotations, versions, activity. Use searchSourcePassages for exact passages rather than full text. Does not modify anything.',
   tags: ['sources'],
   permission: 'source.read',
   scopes: ['source.read', 'knowledge.read'],
@@ -142,6 +146,8 @@ export const searchSourcePassagesOperation = defineOperation({
 Use this when the user wants an exact quotation, asks where a statement appears in a document, needs a page reference, or when you must verify a claim against its source before repeating it.
 
 Never paraphrase a passage as if it were a quotation. Never invent a page number -- use the locator this returns. This operation does not modify anything.`,
+  gptDescription:
+    'Finds best-matching passages with page numbers/locators inside one source. Use for an exact quotation or to verify a claim before repeating it -- never paraphrase as a quotation or invent a page number. Does not modify anything.',
   tags: ['sources'],
   permission: 'source.read',
   scopes: ['source.read', 'knowledge.read'],
@@ -174,6 +180,8 @@ The newly created source is NOT approved. It enters the Research Inbox as needs_
 If a duplicate exists this returns DUPLICATE_SOURCE with the existing record; tell the user what already exists and ask whether to open it, save a related copy, or capture a new version. Do not silently create a second copy.
 
 This operation writes. Supply an Idempotency-Key header to make a retry safe.`,
+  gptDescription:
+    "Fetches a URL, extracts content, checks duplicates, creates a source and queues enrichment. Never approved on creation -- it enters needs_review. On DUPLICATE_SOURCE, tell the user what exists and ask whether to open it, save related, or version it -- don't silently retry. Writes.",
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -257,6 +265,8 @@ export const ingestIdentifierOperation = defineOperation({
 Use this when the user gives a DOI or PMID rather than a URL. If the identifier is already in the library the existing record is returned and nothing new is created.
 
 This operation writes. The created source is unreviewed.`,
+  gptDescription:
+    'Resolves a DOI or PMID to its bibliographic record and saves it as a source. Returns the existing record if already in the library. Writes; the created source is unreviewed.',
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -291,6 +301,8 @@ export const createSourceOperation = defineOperation({
 Use this when there is no URL to fetch, or when the publisher blocks automated access and the user has supplied the text. For a URL, use ingestUrl instead: it captures the original and its metadata.
 
 This operation writes. The created source is unreviewed.`,
+  gptDescription:
+    'Creates a source from text you already have (pasted article, manual note, no fetchable URL). For a URL use ingestUrl instead. Writes; the created source is always unreviewed.',
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -339,6 +351,8 @@ This action does NOT change review status (use changeSourceReviewStatus), catego
 Pass expected_version to detect a concurrent edit; a mismatch returns VERSION_CONFLICT rather than overwriting someone else's change.
 
 This operation writes.`,
+  gptDescription:
+    'Updates editable metadata (title, authors, publisher, dates, abstract, summaries, findings, limitations) on an existing source. Does not change review status, taxonomy or collections -- use those dedicated operations. Locked fields need source.lock_fields. Writes.',
   tags: ['sources'],
   permission: 'source.update',
   scopes: ['source.write'],
@@ -392,6 +406,8 @@ Use this when the user asks to file a source under a category or to tag it. Cate
 This action does not change review status or collection membership.
 
 This operation writes.`,
+  gptDescription:
+    'Adds or removes categories and tags on a source. Categories must already exist -- use findSimilarCategories/createCategory first if new. Tags are created on demand. Does not change review status or collection membership. Writes.',
   tags: ['sources', 'taxonomy'],
   permission: 'source.update',
   scopes: ['source.write', 'taxonomy.write'],
@@ -513,6 +529,8 @@ A reason is required to reject. Conditions are required for approved_with_condit
 For several sources at once use bulkChangeSourceReviewStatus, which requires confirmation.
 
 This operation writes and requires the source.approve or source.reject permission.`,
+  gptDescription:
+    'Changes a source review status (approved/rejected/disputed/etc). Only call when the permitted user has explicitly decided -- approving makes it organizational evidence, never on your own initiative. Reason required to reject; conditions required for approved_with_conditions. Writes.',
   tags: ['sources', 'review'],
   scopes: ['source.review'],
   riskLevel: 'medium',

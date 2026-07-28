@@ -29,13 +29,17 @@ const OUT_DIR = join(process.cwd(), 'openapi');
  * -- far fewer than the full registry. This is the curated subset that
  * ships in openapi/gpt-actions.yaml: every operationId referenced by
  * name in docs/gpt-instructions.md (so the GPT's own instructions never
- * point at a tool it doesn't have), plus the minimum extra read/write
- * operations needed for search, save, taxonomy, collections, claims,
- * review and briefs to actually function end to end. Admin operations
- * (team, integrations, audit browsing) stay internalOnly regardless --
- * a full research/knowledge workflow was the priority for the 30 slots,
- * not exhaustiveness. Split into a second GPT (e.g. a review/admin
- * assistant) if more coverage is needed; see docs/gpt-setup-guide.md.
+ * point at a tool it doesn't have), plus every core article/knowledge-base
+ * management action -- add (URL/DOI/pasted text), fetch/query/reference
+ * (search, get, list, exact passages), categorize and re-categorize an
+ * existing article, file into a specific collection, edit metadata,
+ * change review status -- since that end-to-end library workflow is what
+ * this GPT is for. Claim creation (createClaim/addClaimEvidence) didn't
+ * make the cut this round in favor of that; reviewClaim/analyzeClaimConflicts
+ * still work on claims created via the dashboard. Admin operations (team,
+ * integrations, audit browsing) stay internalOnly regardless. Swap entries
+ * here (and re-run npm run openapi:generate) to change the 30, or split
+ * into a second GPT for more coverage -- see docs/gpt-setup-guide.md.
  */
 const CORE_GPT_ACTIONS = new Set([
   'getCurrentUser',
@@ -54,8 +58,8 @@ const CORE_GPT_ACTIONS = new Set([
   'listCollections',
   'createCollection',
   'addSourceToCollections',
-  'createClaim',
-  'addClaimEvidence',
+  'updateSource',
+  'updateSourceTaxonomy',
   'reviewClaim',
   'analyzeClaimConflicts',
   'changeSourceReviewStatus',
@@ -123,7 +127,7 @@ function pathParamNames(path: string): string[] {
   return [...path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
 }
 
-function buildOperationObject(operation: Operation): Record<string, unknown> {
+function buildOperationObject(operation: Operation, gptFacing: boolean): Record<string, unknown> {
   const shape = objectShape(operation.input);
   const pathParams = new Set(pathParamNames(operation.path));
 
@@ -169,7 +173,7 @@ function buildOperationObject(operation: Operation): Record<string, unknown> {
   const op: Record<string, unknown> = {
     operationId: operation.operationId,
     summary: operation.summary,
-    description: operation.description,
+    description: gptFacing ? (operation.gptDescription ?? operation.description) : operation.description,
     tags: operation.tags,
     'x-risk-level': operation.riskLevel,
     'x-may-require-confirmation': Boolean(operation.mayRequireConfirmation),
@@ -230,12 +234,12 @@ function buildOperationObject(operation: Operation): Record<string, unknown> {
   return op;
 }
 
-function buildPaths(operations: Operation[]): Record<string, Record<string, unknown>> {
+function buildPaths(operations: Operation[], gptFacing: boolean): Record<string, Record<string, unknown>> {
   const paths: Record<string, Record<string, unknown>> = {};
   for (const operation of operations) {
     const key = operation.path.replace(/\{(\w+)\}/g, '{$1}');
     paths[key] = paths[key] ?? {};
-    paths[key][operation.method.toLowerCase()] = buildOperationObject(operation);
+    paths[key][operation.method.toLowerCase()] = buildOperationObject(operation, gptFacing);
   }
   return paths;
 }
@@ -244,35 +248,39 @@ function buildPaths(operations: Operation[]): Record<string, Record<string, unkn
 // Shared components
 // ---------------------------------------------------------------------
 
-function buildComponents(): Record<string, unknown> {
-  return {
-    securitySchemes: {
-      OAuth2: {
-        type: 'oauth2',
-        description: 'User-specific access via the authorization code flow (with PKCE).',
-        flows: {
-          authorizationCode: {
-            authorizationUrl: 'https://research.nirogbhoomi.com/oauth/authorize',
-            tokenUrl: 'https://research.nirogbhoomi.com/oauth/token',
-            scopes: Object.fromEntries(
-              [
-                'profile.read', 'knowledge.read', 'source.read', 'source.write', 'source.review',
-                'collection.read', 'collection.write', 'taxonomy.read', 'taxonomy.write',
-                'claim.read', 'claim.write', 'claim.review', 'annotation.read', 'annotation.write',
-                'research.run', 'brief.read', 'brief.write', 'content.generate', 'audit.read',
-                'admin.integrations',
-              ].map((s) => [s, s.replace(/[._]/g, ' ')]),
-            ),
-          },
-        },
-      },
-      ApiKey: {
-        type: 'http',
-        scheme: 'bearer',
-        description:
-          'Prototype credential (prefix nbgpt_) that acts as a constrained, pre-authorized user. Use OAuth2 for production deployments.',
+function buildComponents(gptFacing: boolean): Record<string, unknown> {
+  const oauth2 = {
+    type: 'oauth2',
+    description: 'User-specific access via the authorization code flow (with PKCE).',
+    flows: {
+      authorizationCode: {
+        authorizationUrl: 'https://research.nirogbhoomi.com/oauth/authorize',
+        tokenUrl: 'https://research.nirogbhoomi.com/oauth/token',
+        scopes: Object.fromEntries(
+          [
+            'profile.read', 'knowledge.read', 'source.read', 'source.write', 'source.review',
+            'collection.read', 'collection.write', 'taxonomy.read', 'taxonomy.write',
+            'claim.read', 'claim.write', 'claim.review', 'annotation.read', 'annotation.write',
+            'research.run', 'brief.read', 'brief.write', 'content.generate', 'audit.read',
+            'admin.integrations',
+          ].map((s) => [s, s.replace(/[._]/g, ' ')]),
+        ),
       },
     },
+  };
+  const apiKey = {
+    type: 'http',
+    scheme: 'bearer',
+    description:
+      'Credential (prefix nbgpt_) that acts as a constrained, pre-authorized user, created via Settings -> Connect a Custom GPT.',
+  };
+
+  return {
+    // ChatGPT's Actions importer only supports one security scheme per
+    // GPT -- gpt-actions.yaml declares only ApiKey (Bearer), matching the
+    // dashboard's "Connect a Custom GPT" flow. full.yaml documents both,
+    // since other integrations (the dashboard itself) use OAuth2.
+    securitySchemes: gptFacing ? { ApiKey: apiKey } : { OAuth2: oauth2, ApiKey: apiKey },
     schemas: {
       Error: {
         type: 'object',
@@ -333,11 +341,16 @@ function buildDocument(operations: Operation[], gptFacing: boolean): Record<stri
         ? 'The subset of the Nirog Bhoomi Research OS API exposed to the Nirog Bhoomi Research Assistant Custom GPT. Every write is permission-checked, scope-checked and audit-logged identically to the dashboard.'
         : 'Complete versioned API for the Nirog Bhoomi Research OS: the dashboard, the internal AI assistant, the Custom GPT, and any future integration all call these same operations.',
     },
-    servers: SERVERS,
-    security: [{ OAuth2: [] }, { ApiKey: [] }],
+    // ChatGPT's Actions importer only supports one server URL and one
+    // security requirement -- gpt-actions.yaml gets exactly one of each.
+    // The /gpt-actions.yaml route additionally rewrites this server URL
+    // to the actual request origin at serve time, so a custom domain or
+    // preview deployment is never stale here.
+    servers: gptFacing ? [SERVERS[0]] : SERVERS,
+    security: gptFacing ? [{ ApiKey: [] }] : [{ OAuth2: [] }, { ApiKey: [] }],
     tags: [...new Set(operations.flatMap((o) => o.tags))].sort().map((tag) => ({ name: tag })),
-    paths: buildPaths(operations),
-    components: buildComponents(),
+    paths: buildPaths(operations, gptFacing),
+    components: buildComponents(gptFacing),
   };
 }
 
@@ -397,6 +410,17 @@ async function main() {
   }
   if (gptOperations.length > 30) {
     console.error(`gpt-actions.yaml has ${gptOperations.length} operations; ChatGPT caps a single GPT at 30.`);
+    process.exit(1);
+  }
+
+  // ChatGPT's Actions importer caps a single operation's description at
+  // 300 characters and rejects the whole import otherwise.
+  const oversizedDescriptions = gptOperations
+    .map((o) => ({ id: o.operationId, length: (o.gptDescription ?? o.description).length }))
+    .filter((o) => o.length > 300);
+  if (oversizedDescriptions.length > 0) {
+    console.error('gpt-actions.yaml has operation(s) exceeding ChatGPT\'s 300-character description cap:');
+    for (const o of oversizedDescriptions) console.error(`  - ${o.id}: ${o.length} chars`);
     process.exit(1);
   }
 

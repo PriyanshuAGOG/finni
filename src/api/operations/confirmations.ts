@@ -12,6 +12,8 @@ export const requestActionConfirmationOperation = defineOperation({
 Call this before any high-risk or critical action -- archiving, bulk operations, merges, or changing an approved clinical claim. Present the exact summary this returns to the user verbatim, obtain their explicit agreement, then call confirmAction, then retry the original operation with the returned confirmation_id.
 
 The confirmation is bound to this exact resource set and payload; it cannot be reused for a different action or a different set of records. This operation writes a confirmation record but does not perform the underlying action.`,
+  gptDescription:
+    'Issues a confirmation record (phrase + expiry) for a high-risk/critical action. Show the user the exact returned summary, get explicit agreement, then call confirmAction, then retry the original operation with the confirmation_id. Bound to this exact resource set and payload.',
   tags: ['confirmations'],
   scopes: [],
   riskLevel: 'low',
@@ -40,6 +42,8 @@ export const confirmActionOperation = defineOperation({
   description: `Marks a confirmation as confirmed after the user has explicitly agreed, by supplying the exact required phrase.
 
 Only call this after the user has been shown the confirmation summary and has clearly agreed. Do not fabricate or guess the phrase -- use exactly what requestActionConfirmation returned. Once confirmed, use the confirmation_id with the original operation; it can only be used once.`,
+  gptDescription:
+    "Marks a confirmation as confirmed using the exact phrase requestActionConfirmation returned -- never guess or paraphrase it. Call only after the user has clearly agreed to the shown summary. The confirmation_id can then be used once with the original operation.",
   tags: ['confirmations'],
   scopes: [],
   riskLevel: 'low',

@@ -75,6 +75,8 @@ export const getMyActionHistoryOperation = defineOperation({
   description: `Returns the current user's own audit history, including everything performed on their behalf by the Custom GPT, the dashboard assistant or the API. Available to any authenticated user without requiring audit.read.
 
 Use this when the user asks what you changed, or wants to review recent actions taken on their behalf. This operation does not modify anything.`,
+  gptDescription:
+    "Returns the current user's own audit history, including everything done on their behalf by this GPT, the dashboard, or the API. Use when asked what changed. Does not modify anything.",
   tags: ['audit'],
   scopes: [],
   riskLevel: 'low',

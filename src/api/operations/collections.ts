@@ -88,6 +88,8 @@ export const createCollectionOperation = defineOperation({
 Before creating one, check listCollections or the similar_collections field this returns for an existing collection covering the same ground -- several collections on one topic are sometimes legitimate, so this is reported rather than blocked, but check with the user if a close match exists.
 
 This operation writes. It is idempotent when given an Idempotency-Key.`,
+  gptDescription:
+    'Creates a collection to organize sources around a topic or project. Check listCollections/similar_collections first for an existing match; ask the user if a close one exists. Writes; idempotent with an Idempotency-Key.',
   tags: ['collections'],
   permission: 'collection.create',
   scopes: ['collection.write'],

@@ -101,6 +101,8 @@ export const generateResearchBriefOperation = defineOperation({
 A previous version is saved before overwriting. Cannot run on an approved brief -- editing an approved brief needs a new version via createResearchBrief.
 
 This operation writes.`,
+  gptDescription:
+    'Generates requested brief sections from its attached sources, citing every factual statement (invented citations are stripped). Saves a prior version before overwriting. Cannot run on an approved brief. Writes.',
   tags: ['briefs'],
   permission: 'brief.update',
   scopes: ['brief.write'],

@@ -18,6 +18,8 @@ Defaults to approved sources only (source_policy approved_only). Using approved_
 Every factual statement in the body carries a citation marker verified against the retrieval context; anything the model could not support is returned separately as unsupported_claims rather than left uncited in the body. Health-facing content requires review by a qualified reviewer before publication -- always say so.
 
 This operation writes and creates a content record.`,
+  gptDescription:
+    'Drafts content (article, patient guide, FAQ, script, etc.) from cited library passages. Defaults to approved sources only; broader policies flag unreviewed material. Unsupported statements are returned separately, never left uncited. Health content always needs reviewer sign-off. Writes.',
   tags: ['content'],
   permission: 'content.generate',
   scopes: ['content.generate'],
@@ -123,6 +125,8 @@ export const validateContentCitationsOperation = defineOperation({
 Returns supported, weakly supported and unsupported statements, citation marker mismatches, and safety review flags including absolute or guaranteeing language. Use this before recommending that content be published, and always surface unsupported or weakly supported statements to the user.
 
 This operation does not modify anything.`,
+  gptDescription:
+    'Re-checks each cited statement in a content draft against its source passage, flagging unsupported/weakly-supported statements and unsafe absolute language. Use before recommending publication; always surface flagged statements. Does not modify anything.',
   tags: ['content'],
   permission: 'content.generate',
   scopes: ['content.generate'],

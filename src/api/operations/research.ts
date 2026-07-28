@@ -58,6 +58,8 @@ export const previewExternalResearchOperation = defineOperation({
 Use this for a bounded, quick external look before deciding whether a full research job is warranted, or to show the user candidates before saving any. Nothing is written to the library by this call.
 
 Every candidate is external_web and is explicitly not approved Nirog Bhoomi evidence -- never present a candidate as though it were.`,
+  gptDescription:
+    'Bounded external search (PubMed + configured web provider) for candidates on a topic, plus what the library already holds. Every candidate is external_web, unreviewed -- never present as approved evidence. Writes nothing.',
   tags: ['research'],
   permission: 'research.run',
   scopes: ['research.run'],
@@ -93,6 +95,8 @@ Use this for a broad or multi-step research request, where several candidate sou
 This does not ingest anything by itself unless automatically_ingest_selected is set and candidates are later selected via selectResearchCandidates. Report the job as queued; check getResearchJob for progress rather than assuming completion.
 
 This operation writes and is idempotent when given an Idempotency-Key.`,
+  gptDescription:
+    'Starts a background research job: expands the question into queries, searches internal/external sources, records candidates for review. Use for broad multi-step research, not a quick lookup. Nothing is ingested unless candidates are later selected. Writes; idempotent with a key.',
   tags: ['research'],
   permission: 'research.run',
   scopes: ['research.run'],
@@ -175,6 +179,8 @@ export const selectResearchCandidatesOperation = defineOperation({
 Do not select and ingest every candidate automatically unless the user has given clear criteria authorizing that. Report duplicates and failures explicitly. Ingested sources are unreviewed, never approved evidence.
 
 This operation writes.`,
+  gptDescription:
+    "Marks research candidates included/excluded with a reason each. If ingest_included is true, included ones are saved via the normal ingestion path. Never auto-select/ingest everything without explicit user criteria. Writes.",
   tags: ['research'],
   permission: 'research.run',
   scopes: ['research.run', 'source.write'],

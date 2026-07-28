@@ -88,6 +88,8 @@ export const createClaimOperation = defineOperation({
 Attach evidence at creation via source_evidence, or add it afterward with addClaimEvidence. When citing a specific passage, pass its passage_id from a prior search so the excerpt and locator are taken from the actual text rather than typed freehand.
 
 Do not create a claim from a source's cited background material, an author's opinion, or a recommendation -- those are not the source's own finding. This operation writes.`,
+  gptDescription:
+    "Creates one atomic, checkable claim -- not a topic -- preserving the source's own qualifiers. Attach evidence via source_evidence or addClaimEvidence afterward, using a real passage_id, not typed text. Never claim a source's cited background or opinion as its own finding. Writes.",
   tags: ['claims'],
   permission: 'claim.create',
   scopes: ['claim.write'],
@@ -201,6 +203,8 @@ export const addClaimEvidenceOperation = defineOperation({
 When passage_id is supplied, the excerpt and locator come from the actual stored passage, not from typed text. This recomputes the claim's evidence status if it has not yet been reviewed by a human; if it has, the claim is flagged for re-review instead of being overridden.
 
 This operation writes.`,
+  gptDescription:
+    'Attaches a source as supporting/contradicting/qualifying evidence for a claim. With passage_id, excerpt and locator come from the real stored passage. Recomputes evidence status if unreviewed; flags for re-review if already reviewed. Writes.',
   tags: ['claims'],
   permission: 'claim.update',
   scopes: ['claim.write'],
@@ -289,6 +293,8 @@ export const analyzeClaimConflictsOperation = defineOperation({
   description: `Compares a claim against other claims covering similar ground and classifies each relationship: true contradiction, different population, different intervention intensity, different outcome, different time horizon, an added qualification, or a methodological disagreement.
 
 These are suggestions for a human reviewer, never a settled verdict, and no claim status is changed by this call. This operation does not modify anything.`,
+  gptDescription:
+    'Compares a claim against similar claims, classifying each relationship (contradiction, different population/intervention/outcome/timeframe, qualification, methodology disagreement). Suggestions for a human reviewer only, never a verdict. Does not modify anything.',
   tags: ['claims'],
   permission: 'claim.read',
   scopes: ['claim.read'],

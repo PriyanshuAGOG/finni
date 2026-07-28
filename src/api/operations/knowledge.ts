@@ -54,6 +54,8 @@ export const getCurrentUser = defineOperation({
 Use this when identity or permissions matter to what you are about to do -- for example before offering to approve a source or merge categories. Do not assume a permission the user has not been shown to hold, and do not use this to work around a FORBIDDEN response.
 
 This operation does not modify anything.`,
+  gptDescription:
+    "Returns this connection's identity, roles, granted scopes and effective permissions. Use before assuming a permission the user hasn't been shown to hold. Does not modify anything.",
   tags: ['profile'],
   scopes: ['profile.read'],
   riskLevel: 'low',
@@ -114,6 +116,8 @@ Use this whenever the user asks what the organization already knows, asks you to
 This returns retrieval results with matched passages and locators. It does NOT write an answer -- use synthesizeKnowledge for that. It does NOT search the web; use previewExternalResearch or startResearchJob for external discovery.
 
 Every result states its origin (internal_approved, internal_unreviewed or internal_archived). Never describe an unreviewed result as approved organizational evidence. This operation does not modify anything.`,
+  gptDescription:
+    'Hybrid search (full-text, semantic, taxonomy, evidence-weighted) over internal sources, claims, collections and briefs. Search before synthesizing. Returns passages with locators, never web results. Every result states origin (approved/unreviewed/archived) -- never call unreviewed approved.',
   tags: ['knowledge'],
   permission: 'knowledge.read',
   scopes: ['knowledge.read'],
@@ -193,6 +197,8 @@ Use this when the user wants an answer rather than a list of results -- a cited 
 The service rejects any citation the model produced that is not in the retrieval context, so citations returned here always correspond to real passages. Statements whose citations were all invalid are dropped rather than shown uncited.
 
 Defaults to approved sources only. Setting approved_only to false includes unreviewed material, which must then be described as unreviewed in your answer. This operation does not use the web and does not modify anything.`,
+  gptDescription:
+    'Produces a cited answer built only from internal sources; citations not matching a real retrieved passage are stripped. Search first unless you already hold source ids. Defaults to approved sources only; unreviewed material must be labeled as such if included.',
   tags: ['knowledge'],
   permission: 'knowledge.read',
   scopes: ['knowledge.read'],
@@ -238,6 +244,8 @@ export const findEvidenceOperation = defineOperation({
 Use this when the user asks whether something is supported, what contradicts it, or wants the exact passages behind a position. The distinction in the response matters: curated claim evidence has been reviewed by a person, passage evidence has not.
 
 This does not create or modify claims. Use createClaim or addClaimEvidence for that.`,
+  gptDescription:
+    "Finds evidence for a claim/question, separating human-reviewed claim evidence from unreviewed retrieval matches -- say which is which. Does not create or modify claims; use createClaim/addClaimEvidence for that.",
   tags: ['knowledge'],
   permission: 'knowledge.read',
   scopes: ['knowledge.read'],
@@ -269,6 +277,8 @@ export const compareSourcesOperation = defineOperation({
 Use this when the user asks how studies differ, which is stronger, or why two sources seem to disagree. The response names which sources have no data for each dimension, and flags whether the study metadata was human-verified or only auto-extracted.
 
 Requires between two and eight source ids. This operation does not modify anything.`,
+  gptDescription:
+    'Side-by-side comparison of 2-8 sources across design, population, intervention, outcomes, funding and conflicts of interest. Flags whether metadata was human-verified or auto-extracted. Does not modify anything.',
   tags: ['knowledge'],
   permission: 'knowledge.read',
   scopes: ['knowledge.read'],
