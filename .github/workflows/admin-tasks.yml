@@ -13,6 +13,7 @@ on:
         required: true
         type: choice
         options:
+          - db-migrate
           - appwrite-provision
           - bootstrap-admin
 
@@ -28,6 +29,17 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Apply database migrations
+        if: inputs.task == 'db-migrate'
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Migrations run as the schema owner, which DATABASE_URL alone
+          # may not be -- set this secret too if DATABASE_URL is the
+          # restricted app role (it must be, for RLS to actually apply
+          # once the app is running). Falls back to DATABASE_URL if unset.
+          MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
 
       - name: Provision the Appwrite storage bucket
         if: inputs.task == 'appwrite-provision'

@@ -64,7 +64,7 @@ This is only for file storage — original ingested documents and page snapshots
 
 If `STORAGE_DRIVER=appwrite` is set without `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID` and `APPWRITE_API_KEY` all present, the app refuses to boot with a clear `Invalid environment configuration` error rather than failing later on the first ingest.
 
-**No local machine to run this from?** `.github/workflows/admin-tasks.yml` runs `appwrite:provision` and `bootstrap:admin` (below) on GitHub's own runners — nothing to install or download. One-time setup: repo → **Settings → Secrets and variables → Actions** → add secrets `DATABASE_URL`, `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `APPWRITE_BUCKET_ID` (and, for the admin bootstrap, `ORG_NAME`, `ORG_SLUG`, `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`). Then **Actions tab → "Admin tasks" → Run workflow**, pick the task, run.
+**No local machine to run this from?** `.github/workflows/admin-tasks.yml` runs `db:migrate`, `appwrite:provision` and `bootstrap:admin` on GitHub's own runners — nothing to install or download. One-time setup: repo → **Settings → Secrets and variables → Actions** → add secrets `DATABASE_URL`, `MIGRATION_DATABASE_URL` (the schema-owner connection string — needed for `db-migrate` specifically, since the app's own `DATABASE_URL` role deliberately can't alter its own schema; see step 1 above), `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `APPWRITE_BUCKET_ID` (and, for the admin bootstrap, `ORG_NAME`, `ORG_SLUG`, `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`). Then **Actions tab → "Admin tasks" → Run workflow**, pick the task, run — `db-migrate` first, since everything else needs the schema to exist.
 
 ## 2b. Email (team invitations)
 
