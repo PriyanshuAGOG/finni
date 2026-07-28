@@ -6,6 +6,7 @@
  */
 import { Pool } from 'pg';
 import { getEnv } from '../src/lib/env';
+import { reportError } from './lib/report-error';
 
 async function main() {
   const env = getEnv();
@@ -33,6 +34,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
+  reportError(err);
   process.exit(1);
 });

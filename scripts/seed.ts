@@ -15,6 +15,7 @@
 import { randomUUID } from 'node:crypto';
 import { withOrg, withoutOrg, closePool } from '../src/lib/db';
 import type { ActorContext } from '../src/lib/context';
+import { reportError } from './lib/report-error';
 import { SYSTEM_ROLES } from '../src/domain/permissions';
 import { hashPassword } from '../src/lib/crypto';
 import { createCategory } from '../src/services/taxonomy';
@@ -960,7 +961,8 @@ async function seedProcessingJobStates(
 }
 
 main().catch(async (err) => {
-  console.error('SEED FAILED:', err);
+  console.error('SEED FAILED:');
+  reportError(err);
   await closePool();
   process.exit(1);
 });

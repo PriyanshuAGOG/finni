@@ -1,5 +1,6 @@
 import { Client, Storage } from 'node-appwrite';
 import { getEnv } from '../src/lib/env';
+import { reportError } from './lib/report-error';
 
 /**
  * Creates the Appwrite Storage bucket used for source snapshots, if it
@@ -74,6 +75,6 @@ function isNotFound(err: unknown): boolean {
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
+  reportError(err);
   process.exit(1);
 });

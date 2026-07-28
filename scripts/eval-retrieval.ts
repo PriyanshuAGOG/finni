@@ -14,6 +14,7 @@
 import { withoutOrg, withOrg, closePool } from '../src/lib/db';
 import type { ActorContext } from '../src/lib/context';
 import { SYSTEM_ROLES } from '../src/domain/permissions';
+import { reportError } from './lib/report-error';
 import { searchKnowledge } from '../src/services/search';
 import { synthesizeKnowledge } from '../src/services/synthesis';
 
@@ -198,7 +199,7 @@ async function main() {
 }
 
 main().catch(async (err) => {
-  console.error(err);
+  reportError(err);
   await closePool();
   process.exit(1);
 });

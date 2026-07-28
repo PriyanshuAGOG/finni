@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 import { getEnv } from '../src/lib/env';
 import { sha256 } from '../src/lib/crypto';
+import { reportError } from './lib/report-error';
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'db', 'migrations');
 
@@ -78,6 +79,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
+  reportError(err);
   process.exit(1);
 });
