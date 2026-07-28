@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ErrorReporter } from './components/error-reporter';
 
 export const metadata: Metadata = {
   title: 'Nirog Bhoomi Research OS',
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ErrorReporter />
+        {children}
+      </body>
     </html>
   );
 }
