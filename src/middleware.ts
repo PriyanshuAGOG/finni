@@ -9,7 +9,14 @@ import { NextResponse, type NextRequest } from 'next/server';
  * requireSessionContext(), which does the real check and is the actual
  * security boundary; this middleware only improves the redirect UX.
  */
-const PUBLIC_PATHS = ['/sign-in', '/api', '/_next', '/favicon.ico'];
+const PUBLIC_PATHS = [
+  '/sign-in',
+  '/accept-invite',
+  '/gpt-actions.yaml',
+  '/api',
+  '/_next',
+  '/favicon.ico',
+];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
