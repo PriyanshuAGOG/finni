@@ -12,7 +12,7 @@ export const ingestFileOperation = defineOperation({
 
 Use this only when the caller can actually supply a multipart file upload -- most Custom GPT conversations cannot, in which case suggest ingestUrl or createSource with pasted text instead. Duplicate files (identical content hash) return the existing source rather than creating a copy.
 
-This operation writes. The created source is unreviewed.`,
+This operation writes. The created source is approved immediately.`,
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],

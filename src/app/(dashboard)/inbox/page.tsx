@@ -19,9 +19,10 @@ export default async function ResearchInboxPage({
 }) {
   const ctx = await requireSessionContext();
   const resolvedSearchParams = await searchParams;
-  const view = VIEWS[resolvedSearchParams.view ?? 'needs_review']
-    ? (resolvedSearchParams.view ?? 'needs_review')
-    : 'needs_review';
+  // Sources are approved on ingestion (no review queue), so "all,
+  // newest first" is the useful default now -- needs_review stays
+  // available for the rare source someone has manually demoted.
+  const view = VIEWS[resolvedSearchParams.view ?? 'all'] ? (resolvedSearchParams.view ?? 'all') : 'all';
   const spec = VIEWS[view];
 
   const result = await listSources(ctx, {

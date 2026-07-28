@@ -475,9 +475,13 @@ async function createFromExtraction(
         readingTimeMinutes(text),
         extraction.thumbnailUrl ?? null,
         extraction.faviconUrl ?? null,
-        // Nothing is ever born approved. A newly ingested source always
-        // needs a human before it counts as organizational evidence.
-        'needs_review',
+        // This deployment is internal-only, so a newly ingested source is
+        // approved evidence immediately rather than waiting in a review
+        // queue nobody outside the org could see anyway. Extraction
+        // confidence and warnings still travel with the record for anyone
+        // who wants to sanity-check it, and changeSourceReviewStatus can
+        // still mark something disputed/rejected after the fact.
+        'approved',
         input.visibility ?? 'organization',
         strongest ? mapDuplicateKind(strongest.kind, input.behavior) : 'none',
         strongest && input.behavior === 'create_related' ? strongest.source_id : null,
@@ -597,7 +601,7 @@ async function createFromExtraction(
         submitted_url: input.submittedUrl,
         source_type: extraction.sourceTypeHint,
         duplicate_status: strongest ? strongest.kind : 'none',
-        review_status: 'needs_review',
+        review_status: 'approved',
       },
     });
 
@@ -609,13 +613,13 @@ async function createFromExtraction(
       duplicates,
       processing_job_id: processingJobId,
       processing_status: input.skipEnrichment ? 'completed' : 'queued',
-      review_status: 'needs_review',
+      review_status: 'approved',
       current_stage: input.skipEnrichment ? null : 'queued',
       warnings,
       dashboard_url: `/library/${sourceId}`,
       message: input.skipEnrichment
-        ? `Added "${truncate(row!.title, 80)}" to the library. It is unreviewed.`
-        : `Added "${truncate(row!.title, 80)}" to the Research Inbox. Enrichment is queued. The source is unreviewed and is not yet approved evidence.`,
+        ? `Added "${truncate(row!.title, 80)}" to the library.`
+        : `Added "${truncate(row!.title, 80)}" to the library. Enrichment is queued.`,
     };
   });
 }
@@ -707,16 +711,20 @@ async function attachAsVersion(
     ],
   );
 
-  await sql.query(
+  // Content changes are re-captured as a new version but no longer demote
+  // an approved source back to needs_review -- there is no approval queue
+  // left to demote it into. review_status is left untouched here (a human
+  // who marked it rejected/disputed stays that way; an approved one stays
+  // approved) and is read back below to reflect its true current value.
+  const updated = await sql.one<{ review_status: string }>(
     `UPDATE sources
      SET extracted_text = $1, normalized_text = $1, content_hash = $2,
          normalized_content_hash = $3, simhash = $4, word_count = $5,
          reading_time_minutes = $6, last_content_check_at = now(),
-         review_status = CASE WHEN review_status IN ('approved','approved_with_conditions')
-                              THEN 'needs_review'::review_status ELSE review_status END,
          processing_status = 'queued'::processing_status,
          updated_by = $7, updated_at = now(), version = version + 1
-     WHERE id = $8`,
+     WHERE id = $8
+     RETURNING review_status::text`,
     [
       text,
       hash,
@@ -754,11 +762,10 @@ async function attachAsVersion(
     duplicates,
     processing_job_id: processingJobId,
     processing_status: 'queued',
-    review_status: 'needs_review',
+    review_status: updated!.review_status,
     current_stage: 'queued',
     warnings: [
       `The published content changed, so this was saved as version ${versionNumber} of the existing source rather than as a new record.`,
-      'An approved source returns to needs_review when its content changes, because the approval applied to the previous text.',
     ],
     dashboard_url: `/library/${sourceId}`,
     message: `Captured version ${versionNumber} of the existing source "${truncate(latest?.title ?? '', 80)}".`,

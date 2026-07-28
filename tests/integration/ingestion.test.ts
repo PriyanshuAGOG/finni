@@ -14,13 +14,13 @@ afterAll(async () => {
 });
 
 describe('source creation', () => {
-  it('creates a source that is unreviewed by default', async () => {
+  it('creates a source that is approved immediately (no review queue)', async () => {
     const result = await createManualSource(org.adminCtx, {
       title: 'A new source about walking',
       text: 'Walking after meals may help control blood sugar levels in some adults.',
     });
     expect(result.created).toBe(true);
-    expect(result.review_status).toBe('needs_review');
+    expect(result.review_status).toBe('approved');
   });
 
   it('rejects an empty title', async () => {

@@ -175,13 +175,13 @@ export const ingestUrlOperation = defineOperation({
 
 Use this when the user explicitly asks to save, log or add a link, or when an external research candidate has been chosen for saving. Do not call it speculatively for a URL the user merely mentioned.
 
-The newly created source is NOT approved. It enters the Research Inbox as needs_review, and you must say so rather than implying it is now organizational evidence.
+The newly created source is approved immediately -- this deployment has no review queue. Extraction confidence and any extraction warnings still travel with the record, so mention them if they're present.
 
 If a duplicate exists this returns DUPLICATE_SOURCE with the existing record; tell the user what already exists and ask whether to open it, save a related copy, or capture a new version. Do not silently create a second copy.
 
 This operation writes. Supply an Idempotency-Key header to make a retry safe.`,
   gptDescription:
-    "Fetches a URL, extracts content, checks duplicates, creates a source and queues enrichment. Never approved on creation -- it enters needs_review. On DUPLICATE_SOURCE, tell the user what exists and ask whether to open it, save related, or version it -- don't silently retry. Writes.",
+    "Fetches a URL, extracts content, checks duplicates, creates a source and queues enrichment. Approved immediately (no review queue) -- mention extraction warnings if present. On DUPLICATE_SOURCE, tell the user what exists and ask whether to open it, save related, or version it. Writes.",
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -230,7 +230,7 @@ export const ingestUrlsBatchOperation = defineOperation({
 
 Use this when the user asks to save several links at once or has selected several research candidates. Each URL is reported separately as created, duplicate or failed -- report the failures, never just the successes.
 
-Defaults to returning the existing record for duplicates rather than failing the whole batch. All created sources are unreviewed.
+Defaults to returning the existing record for duplicates rather than failing the whole batch. All created sources are approved immediately.
 
 This operation writes. Batch size is capped by configuration.`,
   tags: ['sources', 'ingestion'],
@@ -264,9 +264,9 @@ export const ingestIdentifierOperation = defineOperation({
 
 Use this when the user gives a DOI or PMID rather than a URL. If the identifier is already in the library the existing record is returned and nothing new is created.
 
-This operation writes. The created source is unreviewed.`,
+This operation writes. The created source is approved immediately.`,
   gptDescription:
-    'Resolves a DOI or PMID to its bibliographic record and saves it as a source. Returns the existing record if already in the library. Writes; the created source is unreviewed.',
+    'Resolves a DOI or PMID to its bibliographic record and saves it as a source. Returns the existing record if already in the library. Writes; approved immediately.',
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -300,9 +300,9 @@ export const createSourceOperation = defineOperation({
 
 Use this when there is no URL to fetch, or when the publisher blocks automated access and the user has supplied the text. For a URL, use ingestUrl instead: it captures the original and its metadata.
 
-This operation writes. The created source is unreviewed.`,
+This operation writes. The created source is approved immediately.`,
   gptDescription:
-    'Creates a source from text you already have (pasted article, manual note, no fetchable URL). For a URL use ingestUrl instead. Writes; the created source is always unreviewed.',
+    'Creates a source from text you already have (pasted article, manual note, no fetchable URL). For a URL use ingestUrl instead. Writes; approved immediately.',
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
