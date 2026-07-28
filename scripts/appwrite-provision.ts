@@ -44,6 +44,13 @@ async function main() {
     return;
   }
 
+  // Appwrite Cloud's live-enforced ceiling (50,000,000 bytes) is smaller
+  // than the SDK docs' generic "up to 5GB" and smaller than our own
+  // MAX_UPLOAD_BYTES default (52,428,800 = 50 MiB) -- capping here keeps
+  // bucket creation working regardless of which is larger, and a source
+  // snapshot has never needed anywhere near this much room.
+  const APPWRITE_MAX_FILE_SIZE = 50_000_000;
+
   await storage.createBucket({
     bucketId,
     name: 'Research OS source snapshots',
@@ -54,7 +61,7 @@ async function main() {
     // bucket directly, which they never do.
     fileSecurity: false,
     enabled: true,
-    maximumFileSize: env.MAX_UPLOAD_BYTES,
+    maximumFileSize: Math.min(env.MAX_UPLOAD_BYTES, APPWRITE_MAX_FILE_SIZE),
     encryption: true,
     antivirus: true,
   });
