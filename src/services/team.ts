@@ -170,20 +170,35 @@ export async function inviteMember(
   const acceptUrl = new URL('/accept-invite', env.APP_BASE_URL);
   acceptUrl.searchParams.set('token', plaintextToken);
 
+  // EMAIL_PROVIDER=console (the default -- no email account required) never
+  // throws; it just logs. Treating that as "sent" would hide the link from
+  // the one place the inviter could actually get it, so "sent" here means
+  // "handed to a real delivery provider without it erroring," not merely
+  // "the call didn't throw."
   let emailSent = false;
   let warning: string | undefined;
-  try {
+  if (env.EMAIL_PROVIDER === 'resend') {
+    try {
+      await getEmailProvider().send({
+        to: email,
+        subject: `You're invited to Nirog Bhoomi Research OS`,
+        html: `<p>${escapeHtml(ctx.userName ?? 'A teammate')} invited you to join Nirog Bhoomi Research OS.</p>
+               <p><a href="${acceptUrl.toString()}">Accept the invitation</a></p>
+               <p>This link expires ${expiresAt.toUTCString()}.</p>`,
+        text: `${ctx.userName ?? 'A teammate'} invited you to join Nirog Bhoomi Research OS.\n\nAccept: ${acceptUrl.toString()}\n\nThis link expires ${expiresAt.toUTCString()}.`,
+      });
+      emailSent = true;
+    } catch (err) {
+      warning = `The invitation email could not be sent (${err instanceof Error ? err.message : 'unknown error'}). Share the link below directly instead.`;
+    }
+  } else {
     await getEmailProvider().send({
       to: email,
       subject: `You're invited to Nirog Bhoomi Research OS`,
-      html: `<p>${escapeHtml(ctx.userName ?? 'A teammate')} invited you to join Nirog Bhoomi Research OS.</p>
-             <p><a href="${acceptUrl.toString()}">Accept the invitation</a></p>
-             <p>This link expires ${expiresAt.toUTCString()}.</p>`,
-      text: `${ctx.userName ?? 'A teammate'} invited you to join Nirog Bhoomi Research OS.\n\nAccept: ${acceptUrl.toString()}\n\nThis link expires ${expiresAt.toUTCString()}.`,
+      html: '',
+      text: `${ctx.userName ?? 'A teammate'} invited you to join Nirog Bhoomi Research OS.\n\nAccept: ${acceptUrl.toString()}`,
     });
-    emailSent = true;
-  } catch (err) {
-    warning = `The invitation email could not be sent (${err instanceof Error ? err.message : 'unknown error'}). Share the link below directly instead.`;
+    warning = 'EMAIL_PROVIDER is not configured to actually send email -- share the link below directly.';
   }
 
   return {
@@ -222,6 +237,131 @@ export async function revokeInvitation(ctx: ActorContext, invitationId: string):
       action: 'user.invitation_revoked',
       resourceType: 'user',
       resourceId: invitation.user_id,
+    });
+  });
+}
+
+export interface UpdateMemberInput {
+  fullName?: string;
+  jobTitle?: string | null;
+  roleSlug?: string;
+}
+
+/** Edits a member's name/title and, optionally, replaces their role. */
+export async function updateMember(
+  ctx: ActorContext,
+  userId: string,
+  input: UpdateMemberInput,
+): Promise<void> {
+  requirePermission(ctx, 'user.manage');
+  await withOrg(ctx.organizationId, async (sql) => {
+    const target = await sql.one<{ id: string; full_name: string }>(
+      `SELECT id, full_name FROM users WHERE id = $1`,
+      [userId],
+    );
+    if (!target) throw notFound('user', userId);
+
+    if (input.fullName !== undefined || input.jobTitle !== undefined) {
+      await sql.query(
+        `UPDATE users SET full_name = COALESCE($1, full_name), job_title = $2 WHERE id = $3`,
+        [input.fullName?.trim() || null, input.jobTitle ?? null, userId],
+      );
+    }
+
+    if (input.roleSlug) {
+      const role = await sql.one<{ id: string }>(`SELECT id FROM roles WHERE slug = $1`, [
+        input.roleSlug,
+      ]);
+      if (!role) throw notFound('role', input.roleSlug);
+      await sql.query(`DELETE FROM user_roles WHERE user_id = $1`, [userId]);
+      await sql.query(`INSERT INTO user_roles (user_id, role_id, assigned_by) VALUES ($1,$2,$3)`, [
+        userId,
+        role.id,
+        ctx.userId,
+      ]);
+    }
+
+    await recordAudit(sql, ctx, {
+      action: 'user.updated',
+      resourceType: 'user',
+      resourceId: userId,
+      previousState: { full_name: target.full_name },
+      newState: { full_name: input.fullName, job_title: input.jobTitle, role: input.roleSlug },
+    });
+  });
+}
+
+/**
+ * Deactivates a member -- reversible (an administrator can flip status
+ * back to 'active'), unlike a hard delete. The row is kept because
+ * audit_logs, source_versions and similar accountability records
+ * reference it; deleting it would either cascade-destroy that history
+ * or leave it pointing at nothing.
+ */
+export async function removeMember(ctx: ActorContext, userId: string): Promise<void> {
+  requirePermission(ctx, 'user.manage');
+  if (userId === ctx.userId) {
+    throw invalidInput('You cannot remove your own account.');
+  }
+
+  await withOrg(ctx.organizationId, async (sql) => {
+    const target = await sql.one<{ id: string; status: string }>(
+      `SELECT id, status::text FROM users WHERE id = $1`,
+      [userId],
+    );
+    if (!target) throw notFound('user', userId);
+
+    const isAdmin = await sql.one<{ user_id: string }>(
+      `SELECT ur.user_id FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1 AND r.slug = 'administrator'`,
+      [userId],
+    );
+    if (isAdmin) {
+      const otherActiveAdmins = await sql.one<{ count: string }>(
+        `SELECT count(*)::text FROM user_roles ur
+         JOIN roles r ON r.id = ur.role_id
+         JOIN users u ON u.id = ur.user_id
+         WHERE r.slug = 'administrator' AND u.status = 'active' AND u.id != $1`,
+        [userId],
+      );
+      if (Number(otherActiveAdmins?.count ?? '0') === 0) {
+        throw conflict('This is the last active administrator and cannot be removed.');
+      }
+    }
+
+    await sql.query(`UPDATE users SET status = 'deactivated' WHERE id = $1`, [userId]);
+    await sql.query(`UPDATE sessions SET revoked_at = now() WHERE user_id = $1`, [userId]);
+
+    await recordAudit(sql, ctx, {
+      action: 'user.removed',
+      resourceType: 'user',
+      resourceId: userId,
+      previousState: { status: target.status },
+      newState: { status: 'deactivated' },
+    });
+  });
+}
+
+/** Restores a deactivated or suspended member to active. */
+export async function reactivateMember(ctx: ActorContext, userId: string): Promise<void> {
+  requirePermission(ctx, 'user.manage');
+  await withOrg(ctx.organizationId, async (sql) => {
+    const target = await sql.one<{ id: string; status: string }>(
+      `SELECT id, status::text FROM users WHERE id = $1`,
+      [userId],
+    );
+    if (!target) throw notFound('user', userId);
+    if (target.status === 'invited') {
+      throw conflict('This account has not accepted its invitation yet.');
+    }
+
+    await sql.query(`UPDATE users SET status = 'active' WHERE id = $1`, [userId]);
+    await recordAudit(sql, ctx, {
+      action: 'user.reactivated',
+      resourceType: 'user',
+      resourceId: userId,
+      previousState: { status: target.status },
+      newState: { status: 'active' },
     });
   });
 }

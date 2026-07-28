@@ -1,9 +1,18 @@
 'use client';
 
-import { useActionState, useTransition } from 'react';
-import { inviteMemberAction, revokeInvitationAction, type InviteMemberState } from '../../actions/team';
+import { useActionState, useState, useTransition } from 'react';
+import {
+  editMemberAction,
+  inviteMemberAction,
+  reactivateMemberAction,
+  removeMemberAction,
+  revokeInvitationAction,
+  type EditMemberState,
+  type InviteMemberState,
+} from '../../actions/team';
 
 const initialState: InviteMemberState = { error: null, success: null };
+const editInitialState: EditMemberState = { error: null, success: null };
 
 export function InviteMemberForm({ roles }: { roles: Array<{ slug: string; name: string }> }) {
   const [state, formAction, pending] = useActionState(inviteMemberAction, initialState);
@@ -42,6 +51,87 @@ export function InviteMemberForm({ roles }: { roles: Array<{ slug: string; name:
         {pending ? 'Sending…' : 'Send invitation'}
       </button>
     </form>
+  );
+}
+
+export function MemberRowActions({
+  userId,
+  currentUserId,
+  status,
+  roles,
+}: {
+  userId: string;
+  currentUserId: string;
+  status: string;
+  roles: Array<{ slug: string; name: string }>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editState, editAction, editPending] = useActionState(editMemberAction, editInitialState);
+  const [removePending, startRemove] = useTransition();
+  const [reactivatePending, startReactivate] = useTransition();
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  if (userId === currentUserId) {
+    return <span className="text-xs text-slate-400">(you)</span>;
+  }
+
+  if (editing) {
+    return (
+      <form action={editAction} className="flex flex-wrap items-center gap-1.5">
+        <input type="hidden" name="user_id" value={userId} />
+        <input name="full_name" type="text" placeholder="New name" className="input w-28 text-xs" />
+        <select name="role_slug" className="input w-28 text-xs" defaultValue="">
+          <option value="">(role unchanged)</option>
+          {roles.map((r) => (
+            <option key={r.slug} value={r.slug}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+        <button type="submit" disabled={editPending} className="btn btn-primary text-xs">
+          {editPending ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" className="btn btn-secondary text-xs" onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+        {editState.error && <span className="text-xs text-red-600">{editState.error}</span>}
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <button type="button" className="btn btn-secondary text-xs" onClick={() => setEditing(true)}>
+        Edit
+      </button>
+      {status === 'deactivated' || status === 'suspended' ? (
+        <button
+          type="button"
+          disabled={reactivatePending}
+          className="btn btn-secondary text-xs"
+          onClick={() => startReactivate(() => void reactivateMemberAction(userId))}
+        >
+          {reactivatePending ? 'Restoring…' : 'Reactivate'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled={removePending}
+          className="btn btn-secondary text-xs"
+          onClick={() => {
+            if (!confirm('Remove this member? They will immediately lose access; this can be undone.')) return;
+            setRemoveError(null);
+            startRemove(async () => {
+              const result = await removeMemberAction(userId);
+              if (result.error) setRemoveError(result.error);
+            });
+          }}
+        >
+          {removePending ? 'Removing…' : 'Remove'}
+        </button>
+      )}
+      {removeError && <span className="text-xs text-red-600">{removeError}</span>}
+    </div>
   );
 }
 

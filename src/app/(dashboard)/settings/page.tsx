@@ -2,11 +2,13 @@ import { requireSessionContext } from '../../lib/session';
 import { withOrg } from '../../../lib/db';
 import { hasPermission } from '../../../lib/context';
 import { listMembers, listPendingInvitations } from '../../../services/team';
-import { InviteMemberForm, RevokeInvitationButton } from './team-controls';
+import { InviteMemberForm, MemberRowActions, RevokeInvitationButton } from './team-controls';
+import { CreateApiClientForm } from './integration-controls';
 
 export default async function SettingsPage() {
   const ctx = await requireSessionContext();
   const canManageTeam = hasPermission(ctx, 'user.manage');
+  const canManageIntegrations = hasPermission(ctx, 'integration.manage');
 
   const data = await withOrg(ctx.organizationId, async (sql) => {
     const org = await sql.one<{ name: string; settings: Record<string, unknown> }>(
@@ -49,6 +51,7 @@ export default async function SettingsPage() {
               <th className="py-1">Email</th>
               <th className="py-1">Role</th>
               <th className="py-1">Status</th>
+              {canManageTeam && <th className="py-1">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -62,6 +65,16 @@ export default async function SettingsPage() {
                     {m.status}
                   </span>
                 </td>
+                {canManageTeam && (
+                  <td className="py-1.5">
+                    <MemberRowActions
+                      userId={m.id}
+                      currentUserId={ctx.userId}
+                      status={m.status}
+                      roles={data.roles.map((r) => ({ slug: r.slug, name: r.name }))}
+                    />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -123,12 +136,21 @@ export default async function SettingsPage() {
             {data.apiClients.length === 0 && (
               <tr>
                 <td colSpan={4} className="py-4 text-center text-slate-400">
-                  No API clients configured yet. Create one via the createApiClient operation.
+                  No API clients configured yet.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+
+        {canManageIntegrations && (
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase text-slate-500">
+              Connect a Custom GPT
+            </h3>
+            <CreateApiClientForm />
+          </div>
+        )}
       </div>
 
       <div className="card p-4">

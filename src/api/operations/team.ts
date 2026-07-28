@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import { defineOperation } from '../registry';
-import { inviteMember, listMembers, listPendingInvitations, revokeInvitation } from '../../services/team';
+import {
+  inviteMember,
+  listMembers,
+  listPendingInvitations,
+  reactivateMember,
+  removeMember,
+  revokeInvitation,
+  updateMember,
+} from '../../services/team';
 
 export const listMembersOperation = defineOperation({
   operationId: 'listMembers',
@@ -77,5 +85,70 @@ export const revokeInvitationOperation = defineOperation({
   handler: async (input, { ctx }) => {
     await revokeInvitation(ctx, input.invitationId);
     return { id: input.invitationId, status: 'revoked' };
+  },
+});
+
+export const updateMemberOperation = defineOperation({
+  operationId: 'updateMember',
+  method: 'PATCH',
+  path: '/team/members/{userId}',
+  summary: "Edit a member's name, title or role (administrators)",
+  description:
+    'Updates a member\'s display name, job title and/or role. Omitted fields are left unchanged. Requires user.manage.',
+  tags: ['admin'],
+  permission: 'user.manage',
+  scopes: [],
+  riskLevel: 'medium',
+  internalOnly: true,
+  input: z.object({
+    userId: z.string().uuid(),
+    full_name: z.string().min(1).optional(),
+    job_title: z.string().nullish(),
+    role_slug: z.string().min(1).optional(),
+  }),
+  handler: async (input, { ctx }) => {
+    await updateMember(ctx, input.userId, {
+      fullName: input.full_name,
+      jobTitle: input.job_title,
+      roleSlug: input.role_slug,
+    });
+    return { id: input.userId, status: 'updated' };
+  },
+});
+
+export const removeMemberOperation = defineOperation({
+  operationId: 'removeMember',
+  method: 'POST',
+  path: '/team/members/{userId}/remove',
+  summary: 'Deactivate a member (administrators)',
+  description:
+    "Deactivates a member's account -- reversible via updateMember, not a permanent delete, since audit and version history still reference them. Refuses to remove your own account or the last active administrator. Requires user.manage.",
+  tags: ['admin'],
+  permission: 'user.manage',
+  scopes: [],
+  riskLevel: 'high',
+  internalOnly: true,
+  input: z.object({ userId: z.string().uuid() }),
+  handler: async (input, { ctx }) => {
+    await removeMember(ctx, input.userId);
+    return { id: input.userId, status: 'deactivated' };
+  },
+});
+
+export const reactivateMemberOperation = defineOperation({
+  operationId: 'reactivateMember',
+  method: 'POST',
+  path: '/team/members/{userId}/reactivate',
+  summary: 'Restore a deactivated or suspended member to active (administrators)',
+  description: 'Sets a deactivated or suspended member back to active. Requires user.manage.',
+  tags: ['admin'],
+  permission: 'user.manage',
+  scopes: [],
+  riskLevel: 'medium',
+  internalOnly: true,
+  input: z.object({ userId: z.string().uuid() }),
+  handler: async (input, { ctx }) => {
+    await reactivateMember(ctx, input.userId);
+    return { id: input.userId, status: 'active' };
   },
 });
