@@ -16,6 +16,7 @@ on:
           - db-migrate
           - appwrite-provision
           - bootstrap-admin
+          - list-users
 
 jobs:
   run:
@@ -62,3 +63,9 @@ jobs:
           ADMIN_NAME: ${{ secrets.ADMIN_NAME }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+      - name: List organizations and users (diagnostic, no secrets printed)
+        if: inputs.task == 'list-users'
+        run: npm run db:list-users
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
