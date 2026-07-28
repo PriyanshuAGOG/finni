@@ -17,11 +17,14 @@ import {
 } from '../lib/text';
 import {
   extractFromUrl,
+  extractFromUrlCapturingDocument,
   extractPlainText,
   resolveDoi,
   resolvePmid,
   type ExtractionResult,
 } from '../extraction/extract';
+import type { FetchedDocument } from '../extraction/fetch';
+import { extensionForContentType, getStorageDriver } from '../lib/storage';
 import { recordAudit } from './audit';
 import { enqueue, ENRICHMENT_STAGES } from './processing';
 import { upsertTag, refreshTagUsage } from './taxonomy';
@@ -109,9 +112,10 @@ export async function ingestUrl(ctx: ActorContext, input: IngestUrlInput): Promi
     });
   }
 
-  const extraction = await extractFromUrl(normalizedUrl);
+  const { extraction, document } = await extractFromUrlCapturingDocument(normalizedUrl);
   return createFromExtraction(ctx, {
     extraction,
+    document,
     submittedUrl: normalizedUrl,
     behavior,
     duplicatesAlreadySeen: urlDuplicates,
@@ -370,6 +374,8 @@ export function sanitizeFilename(filename: string): string {
 
 interface CreateFromExtractionInput {
   extraction: ExtractionResult;
+  /** The raw fetched document, when there is one, for archiving the original. */
+  document?: FetchedDocument | null;
   submittedUrl: string | null;
   behavior: DuplicateBehavior;
   duplicatesAlreadySeen: DuplicateMatch[];
@@ -491,6 +497,39 @@ async function createFromExtraction(
     );
 
     const sourceId = row!.id;
+
+    if (input.document) {
+      try {
+        const storage = getStorageDriver();
+        const ext = extensionForContentType(input.document.contentType);
+        const original = await storage.put(
+          `sources/${sourceId}/original${ext}`,
+          input.document.body,
+          input.document.contentType || 'application/octet-stream',
+        );
+        let snapshotKey: string | null = null;
+        if (extraction.html) {
+          const snapshot = await storage.put(
+            `sources/${sourceId}/snapshot.html`,
+            Buffer.from(extraction.html, 'utf8'),
+            'text/html',
+          );
+          snapshotKey = snapshot.key;
+        }
+        await sql.query(
+          `UPDATE sources SET original_file_path = $1, snapshot_file_path = $2 WHERE id = $3`,
+          [original.key, snapshotKey, sourceId],
+        );
+      } catch (err) {
+        // Storage is best-effort: a misconfigured or unreachable storage
+        // backend should not block saving the source itself, only the
+        // snapshot of it. The source record and its extracted text
+        // (already in `sources.extracted_text`) are unaffected.
+        warnings.push(
+          `The original document snapshot could not be saved: ${err instanceof Error ? err.message : 'unknown error'}`,
+        );
+      }
+    }
 
     await sql.query(
       `INSERT INTO source_versions (

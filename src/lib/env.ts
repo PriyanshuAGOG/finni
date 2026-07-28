@@ -69,13 +69,24 @@ const schema = z.object({
   SEARCH_PROVIDER: z.enum(['none', 'brave', 'tavily']).default('none'),
   SEARCH_API_KEY: z.string().optional(),
 
-  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  STORAGE_DRIVER: z.enum(['local', 's3', 'appwrite']).default('local'),
   STORAGE_LOCAL_PATH: z.string().default('./.storage'),
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   S3_ENDPOINT: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
+
+  /**
+   * Appwrite is used only for file storage (source snapshots) -- the
+   * relational data, RLS-based tenancy and job queue all stay on
+   * Postgres, which Appwrite's document database cannot support natively.
+   */
+  APPWRITE_ENDPOINT: z.union([emptyToUndefined, z.string().url()]).optional(),
+  APPWRITE_PROJECT_ID: z.string().optional(),
+  /** Server-side secret. Never expose to the client; never prefix NEXT_PUBLIC_. */
+  APPWRITE_API_KEY: z.string().optional(),
+  APPWRITE_BUCKET_ID: z.string().default('research_os_sources'),
 
   WORKER_CONCURRENCY: z.coerce.number().int().positive().default(2),
   WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
@@ -96,7 +107,16 @@ const schema = z.object({
   /** Bulk operations larger than this need a confirmation token. */
   BULK_CONFIRM_THRESHOLD: z.coerce.number().int().positive().default(10),
   CONFIRMATION_TTL_MINUTES: z.coerce.number().int().positive().default(15),
-});
+}).refine(
+  (env) =>
+    env.STORAGE_DRIVER !== 'appwrite' ||
+    (env.APPWRITE_ENDPOINT && env.APPWRITE_PROJECT_ID && env.APPWRITE_API_KEY),
+  {
+    message:
+      'APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID and APPWRITE_API_KEY are all required when STORAGE_DRIVER=appwrite.',
+    path: ['STORAGE_DRIVER'],
+  },
+);
 
 export type Env = z.infer<typeof schema>;
 

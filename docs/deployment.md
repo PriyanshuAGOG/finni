@@ -5,7 +5,7 @@
 - **Frontend + API gateway** — Next.js App Router (dashboard pages as server components; `/api/v1/*` as the versioned JSON API). Deploy to Vercel or any Node host.
 - **Database** — PostgreSQL 15+ with `pgvector` and `pg_trgm`. Deploy on Supabase, RDS, Neon, or self-hosted.
 - **Worker** — a long-running Node process (`npm run worker`) polling the `processing_jobs` table. Deploy as a persistent process (Fly.io, Render background worker, ECS task, a VM) — **not** a serverless function, since it needs to poll continuously.
-- **Object storage** — S3-compatible, for uploaded files and snapshots (only needed once `STORAGE_DRIVER=s3` is wired to actual upload handlers).
+- **File storage** — original document/page snapshots captured during ingestion. `STORAGE_DRIVER=local` (default) writes to disk, fine for local dev only (no persistent disk on a serverless deploy). `STORAGE_DRIVER=appwrite` stores them as files in an Appwrite Storage bucket — see "Object storage (Appwrite)" below. `STORAGE_DRIVER=s3` is defined in the environment schema but has no driver implementation yet.
 
 There is deliberately no Redis/queue broker: the durable queue is Postgres itself (`processing_jobs`, claimed with `FOR UPDATE SKIP LOCKED`), which is enough at this scale and one fewer moving part to operate.
 
@@ -39,6 +39,30 @@ npm run db:migrate
 ## 2. Configure environment variables
 
 Copy `.env.example`, fill in `DATABASE_URL`, `MIGRATION_DATABASE_URL`, `ENCRYPTION_KEY` (generate with `openssl rand -hex 32`), and an `AI_PROVIDER` (use `anthropic` or `openai` in production — `deterministic` is for local dev and CI only).
+
+## 2a. Object storage (Appwrite)
+
+This is only for file storage — original ingested documents and page snapshots. The relational data (organizations, sources, claims, the job queue, everything else) stays on Postgres regardless of this setting; Appwrite's document database can't support the row-level-security-based multi-tenancy, cross-table transactions, or the `FOR UPDATE SKIP LOCKED` job queue this app relies on, so it is deliberately scoped to storage only.
+
+1. In the Appwrite Console, create (or use an existing) project and note its **Project ID** and API **Endpoint** (e.g. `https://fra.cloud.appwrite.io/v1`).
+2. Project Settings → **API Keys** → create a new key with scopes: `files.read`, `files.write`, `buckets.read`, `buckets.write`. Copy the key immediately — it is shown once.
+3. Set in `.env` (or your host's environment variables):
+   ```bash
+   STORAGE_DRIVER=appwrite
+   APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1
+   APPWRITE_PROJECT_ID=<your project id>
+   APPWRITE_API_KEY=<the key from step 2>
+   APPWRITE_BUCKET_ID=research_os_sources   # or any bucket id you prefer
+   ```
+   `APPWRITE_API_KEY` is a server-side secret: set it as a regular (not `NEXT_PUBLIC_`) environment variable in Vercel Project Settings, never in client code.
+4. Provision the bucket once:
+   ```bash
+   npm run appwrite:provision
+   ```
+   This creates the bucket if it doesn't already exist and is safe to re-run. No per-file or per-user Appwrite permissions are granted — every read and write is mediated by this app's own API using the server API key, so the bucket only needs to be reachable by that key, not by end users directly.
+5. Deploy (or redeploy) with the environment variables from step 3 in place.
+
+If `STORAGE_DRIVER=appwrite` is set without `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID` and `APPWRITE_API_KEY` all present, the app refuses to boot with a clear `Invalid environment configuration` error rather than failing later on the first ingest.
 
 ## 3. Deploy the web application
 
@@ -88,7 +112,7 @@ See `docs/gpt-setup-guide.md`.
 ## Backup recommendations
 
 - **Database**: continuous WAL archiving + daily base backups at minimum (Supabase/RDS/Neon provide this managed). Test restores periodically — an untested backup is not a backup.
-- **Object storage**: enable versioning on the bucket if using S3; source snapshots and uploaded files are the one thing that cannot be regenerated from the database alone.
+- **Object storage**: source snapshots are the one thing that cannot be regenerated from the database alone. Appwrite Storage keeps file versions on update by default; if a future driver targets S3, enable bucket versioning there too.
 - **Retention**: `audit_logs`, `source_versions`, and `action_confirmations` grow without bound by design (they are the accountability trail) — plan storage growth accordingly, or add a retention policy under Settings once that screen is built out, rather than deleting rows manually.
 
 ## Production checklist

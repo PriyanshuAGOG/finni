@@ -64,6 +64,22 @@ export async function extractFromUrl(url: string): Promise<ExtractionResult> {
   return extractFromFetched(doc);
 }
 
+/**
+ * Same as extractFromUrl, but also returns the raw fetched document so a
+ * caller can archive the original bytes. Returns a null document for
+ * sources (like YouTube) that never go through fetchDocument -- there is
+ * no single original file to archive for those.
+ */
+export async function extractFromUrlCapturingDocument(
+  url: string,
+): Promise<{ extraction: ExtractionResult; document: FetchedDocument | null }> {
+  const youtubeId = extractYouTubeId(url);
+  if (youtubeId) return { extraction: await extractYouTube(url, youtubeId), document: null };
+
+  const doc = await fetchDocument(url);
+  return { extraction: await extractFromFetched(doc), document: doc };
+}
+
 function looksLikePdf(body: Buffer): boolean {
   return body.subarray(0, 5).toString('latin1') === '%PDF-';
 }
