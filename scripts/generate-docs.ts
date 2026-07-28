@@ -6,6 +6,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { registerOperations } from '../src/api/operations';
+import { reportError } from './lib/report-error';
 import { allOperations } from '../src/api/registry';
 import { SCOPES, SCOPE_PERMISSIONS, SYSTEM_ROLES } from '../src/domain/permissions';
 
@@ -106,6 +107,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  reportError(err);
   process.exit(1);
 });

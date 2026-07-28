@@ -13,6 +13,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { reportError } from './lib/report-error';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import YAML from 'yaml';
 import { registerOperations } from '../src/api/operations';
@@ -353,6 +354,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  reportError(err);
   process.exit(1);
 });

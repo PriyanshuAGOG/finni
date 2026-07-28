@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { withoutOrg, withOrg, closePool } from '../src/lib/db';
 import type { ActorContext } from '../src/lib/context';
+import { reportError } from './lib/report-error';
 import { SYSTEM_ROLES } from '../src/domain/permissions';
 import { createManualSource } from '../src/services/ingestion';
 import { searchKnowledge } from '../src/services/search';
@@ -179,7 +180,8 @@ Conflicts of interest: The authors declare no conflicts of interest.`,
 }
 
 main().catch(async (err) => {
-  console.error('SMOKE TEST FAILED:', err);
+  console.error('SMOKE TEST FAILED:');
+  reportError(err);
   await closePool();
   process.exit(1);
 });

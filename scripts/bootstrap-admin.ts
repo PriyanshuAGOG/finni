@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { withOrg, withoutOrg, closePool } from '../src/lib/db';
 import { hashPassword } from '../src/lib/crypto';
 import { SYSTEM_ROLES } from '../src/domain/permissions';
+import { reportError } from './lib/report-error';
 
 async function main() {
   const orgName = requireEnv('ORG_NAME');
@@ -136,6 +137,6 @@ function requireEnv(name: string): string {
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
+  reportError(err);
   process.exit(1);
 });
