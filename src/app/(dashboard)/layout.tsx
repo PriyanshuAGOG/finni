@@ -25,6 +25,7 @@ const NAV = [
   { href: '/briefs', label: 'Briefs' },
   { href: '/content', label: 'Content Studio' },
   { href: '/activity', label: 'Activity' },
+  { href: '/errors', label: 'Errors' },
   { href: '/settings', label: 'Settings' },
 ];
 

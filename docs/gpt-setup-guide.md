@@ -53,7 +53,7 @@ A single credential acts as one pre-authorized, constrained user. Do not use thi
 ## 3. Import the Action schema
 
 1. Import by URL (`https://<your-deployment>/gpt-actions.yaml`) or paste the contents of `openapi/gpt-actions.yaml` directly.
-2. Verify the servers block points at your deployment, not `localhost`.
+2. Verify the servers block points at your actual deployment, not `localhost` and not the `research.nirogbhoomi.com` example domain baked into the repo. `research.nirogbhoomi.com` is a placeholder that has never been a real, DNS-resolving host — if it ends up in the imported schema, every action call fails at the network level with a generic "connection failed" from ChatGPT (a request that never reaches the server at all, so nothing appears in `/errors` or the server logs either). The `/gpt-actions.yaml` route rewrites this placeholder to the actual request origin automatically, so importing by URL from your real deployment (not by pasting a copy of the file that still has the placeholder in it) always produces the right value. If you change your deployment's domain later, re-import (or edit) the Action in the GPT editor — ChatGPT bakes in the servers URL at import time and does not re-fetch it automatically.
 
 ChatGPT's Actions editor caps a single GPT at **30 operations**. The registry has 109; `openapi/gpt-actions.yaml` ships a curated 30-operation subset (search, save, taxonomy, collections, claims, review, briefs, content, confirmations — every tool `docs/gpt-instructions.md` names by ID, plus the minimum extra reads/writes needed for a full research workflow). Admin operations (team, integrations, audit browsing) stay dashboard-only regardless of the cap.
 
@@ -80,7 +80,18 @@ Work through each of these before sharing the GPT with the team:
 
 See `docs/api-scope-matrix.md` for the full scope-to-permission mapping, and `docs/action-risk-matrix.md` for which operations require confirmation.
 
-## 7. Rotating or revoking access
+## 7. If the GPT reports a connection failure
+
+The dashboard's **Errors** page (`/errors`, requires `audit.read`) shows every 5xx the API server actually raised, and every crash caught in the dashboard's own UI, with the stack trace and which operation was involved. Check it first.
+
+If the GPT says something like "connection failed" and nothing shows up in `/errors` for that time, the request never reached the server at all — the API process itself is fine. The two causes seen in practice:
+
+- The Action's servers URL doesn't resolve or isn't reachable (see the warning in step 3 above about the placeholder domain).
+- The deployment is down, mid-deploy, or the custom domain's DNS/TLS isn't fully provisioned yet.
+
+Confirm with a plain request from outside ChatGPT, e.g. `curl -i https://<your-domain>/gpt-actions.yaml` — if that hangs or fails to resolve, ChatGPT will fail identically, and the fix is on the hosting/DNS side, not in this codebase.
+
+## 8. Rotating or revoking access
 
 - OAuth: revoke a single user's access by POSTing to `/oauth/revoke` with `token=<access_or_refresh_token>` (RFC 7009 — either token type works, the endpoint matches whichever hash exists). To cut off every user of the integration at once, expire the `oauth_clients` row's status instead.
 - API key prototype: call `revokeApiClient` (critical risk, requires administrator confirmation). Issue a new key with `createApiClient` if the integration is still needed — the old key cannot be recovered or reactivated.

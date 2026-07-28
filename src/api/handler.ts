@@ -14,6 +14,7 @@ import {
 } from '../services/auth';
 import { matchRoute, type Operation } from './registry';
 import { recordAudit } from '../services/audit';
+import { logError } from '../services/errors';
 
 export interface ApiResponseMeta {
   request_id: string;
@@ -42,6 +43,11 @@ export async function handleApiRequest(request: Request): Promise<Response> {
   const requestId = request.headers.get('x-request-id') ?? `req_${randomUUID().replace(/-/g, '')}`;
   const started = Date.now();
   const baseHeaders: Record<string, string> = { 'x-request-id': requestId };
+  // Populated once known, so a failure before authentication still logs
+  // with whatever it did manage to resolve (operation, path) rather than
+  // nothing at all.
+  let ctxForLogging: ActorContext | undefined;
+  let operationId: string | undefined;
 
   try {
     const url = new URL(request.url);
@@ -56,6 +62,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
     }
 
     const { operation, params } = match;
+    operationId = operation.operationId;
 
     // ---- authenticate ------------------------------------------------
     const identity = await authenticate(request);
@@ -72,6 +79,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
       ipAddress: clientIp(request),
       userAgent: request.headers.get('user-agent') ?? undefined,
     });
+    ctxForLogging = ctx;
 
     // ---- authorize ---------------------------------------------------
     // Checked here as well as in the service: two independent gates mean
@@ -146,7 +154,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
 
     return jsonResponse(body, 200, baseHeaders);
   } catch (err) {
-    return errorResponse(err, requestId, baseHeaders, request);
+    return errorResponse(err, requestId, baseHeaders, request, ctxForLogging, operationId);
   }
 }
 
@@ -171,10 +179,34 @@ async function errorResponse(
   requestId: string,
   headers: Record<string, string>,
   request: Request,
+  ctx: ActorContext | undefined,
+  operationId: string | undefined,
 ): Promise<Response> {
+  const path = new URL(request.url).pathname;
+
   if (isApiError(err)) {
     if (err.code === 'RATE_LIMITED' && typeof err.details.retry_after_seconds === 'number') {
       headers['retry-after'] = String(err.details.retry_after_seconds);
+    }
+    // Every 5xx is a bug or an outage, not a caller mistake, so it goes to
+    // error_logs; 4xx (validation, not-found, forbidden, rate-limited) are
+    // expected outcomes of normal use and stay in the response only.
+    if (err.status >= 500) {
+      await logError({
+        origin: 'api_server',
+        severity: 'error',
+        message: err.message,
+        stack: err.stack,
+        organizationId: ctx?.organizationId,
+        userId: ctx?.userId,
+        sourceInterface: ctx?.sourceInterface,
+        requestId,
+        operationId,
+        errorCode: err.code,
+        path,
+        method: request.method,
+        statusCode: err.status,
+      });
     }
     return jsonResponse(err.toBody(requestId), err.status, headers);
   }
@@ -191,6 +223,21 @@ async function errorResponse(
       stack: err instanceof Error ? err.stack : undefined,
     }),
   );
+
+  await logError({
+    origin: 'api_server',
+    severity: 'fatal',
+    message: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+    organizationId: ctx?.organizationId,
+    userId: ctx?.userId,
+    sourceInterface: ctx?.sourceInterface,
+    requestId,
+    operationId,
+    path,
+    method: request.method,
+    statusCode: 500,
+  });
 
   const internal = new ApiError('INTERNAL_ERROR', 'An unexpected error occurred.', {
     suggestedAction: 'Retry the request. If it keeps failing, report the request id.',
