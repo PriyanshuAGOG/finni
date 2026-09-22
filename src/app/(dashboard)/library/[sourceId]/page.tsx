@@ -148,7 +148,7 @@ function OverviewTab({
               <p className="text-sm text-slate-700">
                 {String(source.ai_summary_detailed ?? source.ai_summary_short ?? 'No summary yet.')}
               </p>
-              <p className="mt-2 text-xs text-amber-700">AI-generated summary — not yet reviewed by a human.</p>
+              <p className="mt-2 text-xs text-slate-400">AI-generated summary.</p>
             </>
           )}
         </Section>
@@ -188,7 +188,7 @@ function OverviewTab({
         <Section title="Categories">
           <div className="flex flex-wrap gap-1">
             {categories.map((c) => (
-              <span key={c.id} className={`badge ${c.approved ? 'badge-approved' : 'badge-unreviewed'}`}>
+              <span key={c.id} className="badge badge-neutral">
                 {c.name}
               </span>
             ))}
