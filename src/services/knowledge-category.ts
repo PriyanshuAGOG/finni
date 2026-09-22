@@ -71,7 +71,7 @@ export function classifyKnowledgeCategory(
     if (category.slug === 'miscellaneous') continue;
     let score = 0;
     for (const term of category.terms) {
-      score += occurrences(normalizedTitle, term) * 5;
+      score += occurrences(normalizedTitle, term) * 10;
       score += Math.min(occurrences(normalizedBody, term), 6);
     }
     if (score > winner.score) {
