@@ -7,7 +7,6 @@ import { truncate } from '../lib/text';
 import { embed } from '../ai/provider';
 import { synthesizeEvidence, validateCitations, type SynthesisPassage } from '../ai/pipeline';
 import { chunkLocator } from '../extraction/chunk';
-import { APPROVED_REVIEW_STATUSES } from './source';
 import { searchKnowledge, toVectorLiteral, type ResearchMode, type SourceOrigin } from './search';
 
 export type CitationStyle =
@@ -93,7 +92,7 @@ export async function synthesizeKnowledge(
   if (!question) throw invalidInput('A question is required.');
 
   const mode = input.mode ?? 'library_only';
-  const approvedOnly = input.approvedOnly ?? true;
+  const approvedOnly = false;
   const maxSources = Math.min(input.maxSources ?? 12, env.MAX_SYNTHESIS_SOURCES);
 
   // Explicit source or collection selection wins; otherwise retrieval
@@ -105,9 +104,8 @@ export async function synthesizeKnowledge(
       sql.query<{ source_id: string }>(
         `SELECT DISTINCT cs.source_id
          FROM collection_sources cs JOIN sources s ON s.id = cs.source_id
-         WHERE cs.collection_id = ANY($1::uuid[]) AND s.status = 'active'
-           AND ($2 = false OR s.review_status = ANY($3::review_status[]))`,
-        [input.collectionIds, approvedOnly, APPROVED_REVIEW_STATUSES],
+         WHERE cs.collection_id = ANY($1::uuid[]) AND s.status = 'active'`,
+        [input.collectionIds],
       ),
     );
     sourceIds = [...new Set([...sourceIds, ...fromCollections.map((r) => r.source_id)])];
@@ -118,10 +116,10 @@ export async function synthesizeKnowledge(
       query: question,
       mode,
       entityTypes: ['sources'],
-      filters: approvedOnly ? { reviewStatus: APPROVED_REVIEW_STATUSES } : {},
+      filters: {},
       limit: maxSources,
       includePassages: true,
-      includeUnreviewed: !approvedOnly,
+      includeUnreviewed: true,
     });
     sourceIds = search.results.map((r) => r.id);
   }
@@ -190,9 +188,7 @@ export async function synthesizeKnowledge(
     input.citationStyle ?? 'numbered',
   );
 
-  const approvedCount = sources.filter((s) =>
-    APPROVED_REVIEW_STATUSES.includes(s.review_status),
-  ).length;
+  const approvedCount = sources.length;
 
   const answer = stripInvalidMarkers(synthesis.answer, available);
 
@@ -201,15 +197,10 @@ export async function synthesizeKnowledge(
     scope: {
       source_count: sources.length,
       approved_count: approvedCount,
-      unreviewed_count: sources.length - approvedCount,
+      unreviewed_count: 0,
       passage_count: passages.length,
-      source_origin:
-        approvedCount === sources.length
-          ? 'internal_approved'
-          : approvedCount === 0
-            ? 'internal_unreviewed'
-            : 'mixed',
-      approved_only: approvedOnly,
+      source_origin: 'internal_approved',
+      approved_only: false,
       mode,
     },
     main_findings: mainFindings,
@@ -229,16 +220,14 @@ function emptySynthesis(
   mode: ResearchMode,
 ): SynthesisResult {
   return {
-    answer: approvedOnly
-      ? 'There is no approved evidence in the library that addresses this question. No answer can be given from approved sources.'
-      : 'No sources in the library address this question within the selected scope.',
+    answer: 'No sources in the library address this question within the selected scope.',
     scope: {
       source_count: 0,
       approved_count: 0,
       unreviewed_count: 0,
       passage_count: 0,
       source_origin: 'internal_approved',
-      approved_only: approvedOnly,
+      approved_only: false,
       mode,
     },
     main_findings: [],
@@ -246,11 +235,7 @@ function emptySynthesis(
     limitations: ['No sources were available, so nothing could be synthesized.'],
     safety_notes: [],
     evidence_quality: 'No evidence available.',
-    gaps: [
-      approvedOnly
-        ? 'The approved library does not cover this question. Consider searching unreviewed sources or running external research.'
-        : 'The library does not cover this question. Consider running external research.',
-    ],
+    gaps: ['The library does not cover this question. Consider running external research.'],
     citations: [],
     rejected_citations: [],
   };
@@ -299,9 +284,8 @@ export async function gatherPassages(
               canonical_url, review_status::text, source_type::text
        FROM sources
        WHERE id = ANY($1::uuid[]) AND status = 'active'
-         AND ($2 = false OR review_status = ANY($3::review_status[]))
        ORDER BY publication_date DESC NULLS LAST`,
-      [input.sourceIds, input.approvedOnly, APPROVED_REVIEW_STATUSES],
+      [input.sourceIds],
     );
 
     // Markers are assigned in a stable order so a citation list reads the
@@ -468,11 +452,11 @@ export function formatCitation(
     }
 
     case 'internal':
-      return `${source.title} — ${outlet}${source.publication_date ? `, ${year}` : ''} (${source.review_status}) /library/${source.id}`;
+      return `${source.title} - ${outlet}${source.publication_date ? `, ${year}` : ''} /library/${source.id}`;
 
     case 'numbered':
     default:
-      return `${marker} ${source.title}. ${outlet}${source.publication_date ? `, ${year}` : ''}. Review status: ${source.review_status}.${url ? ` ${url}` : ''}`;
+      return `${marker} ${source.title}. ${outlet}${source.publication_date ? `, ${year}` : ''}.${url ? ` ${url}` : ''}`;
   }
 }
 
@@ -512,18 +496,17 @@ export async function findEvidence(
       `SELECT ce.id, ce.relationship::text, ce.evidence_excerpt, ce.locator,
               ce.evidence_strength, c.id AS claim_id, c.canonical_text,
               c.evidence_status::text, s.id AS source_id, s.title, s.source_type::text,
-              s.publication_date, s.review_status::text
+              s.publication_date
        FROM claims c
        JOIN claim_evidence ce ON ce.claim_id = c.id
        JOIN sources s ON s.id = ce.source_id
        WHERE c.status = 'active' AND s.status = 'active'
          AND ce.relationship IN ${relationshipFilter}
-         AND ($3 = false OR s.review_status = ANY($4::review_status[]))
          AND (c.search_vector @@ plainto_tsquery('english', $1)
               OR lower(c.canonical_text) % lower($1))
        ORDER BY ts_rank_cd(c.search_vector, plainto_tsquery('english', $1)) DESC
        LIMIT $2`,
-      [input.claimOrQuestion, limit, approvedOnly, APPROVED_REVIEW_STATUSES],
+      [input.claimOrQuestion, limit],
     );
   });
 
@@ -532,12 +515,11 @@ export async function findEvidence(
     query: input.claimOrQuestion,
     entityTypes: ['sources'],
     filters: {
-      ...(approvedOnly ? { reviewStatus: APPROVED_REVIEW_STATUSES } : {}),
       ...(input.collectionIds?.length ? { collectionIds: input.collectionIds } : {}),
     },
     limit,
     includePassages: true,
-    includeUnreviewed: !approvedOnly,
+    includeUnreviewed: true,
   });
 
   return {
@@ -550,7 +532,6 @@ export async function findEvidence(
       title: r.title,
       source_type: r.source_type,
       publication_date: r.publication_date,
-      review_status: r.review_status,
       origin: r.origin,
       passages: r.matched_passages,
       dashboard_url: r.dashboard_url,
@@ -696,12 +677,11 @@ export async function findKnowledgeGaps(
     query: input.topic,
     entityTypes: ['sources'],
     filters: {
-      ...(approvedOnly ? { reviewStatus: APPROVED_REVIEW_STATUSES } : {}),
       ...(input.collectionIds?.length ? { collectionIds: input.collectionIds } : {}),
     },
     limit: 50,
     includePassages: false,
-    includeUnreviewed: !approvedOnly,
+    includeUnreviewed: true,
   });
 
   const sourceIds = search.results.map((r) => r.id);
@@ -712,7 +692,7 @@ export async function findKnowledgeGaps(
       gaps: [
         {
           dimension: 'coverage',
-          finding: `The library contains no ${approvedOnly ? 'approved ' : ''}sources on "${input.topic}". This is a complete gap.`,
+          finding: `The library contains no sources on "${input.topic}". This is a complete gap.`,
           severity: 'high',
         },
       ],
