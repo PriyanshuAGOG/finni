@@ -30,7 +30,20 @@ import { claimNextJob, enqueueStandalone } from '../src/services/processing';
 
 const ORG_SLUG = 'nirog-bhoomi';
 
+function assertLocalDevelopmentDatabase(): void {
+  const raw = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL;
+  if (!raw) throw new Error('DATABASE_URL is required.');
+  const url = new URL(raw);
+  const local = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  if (!local || process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'db:seed is destructive development tooling and refuses to run against a remote or production database.',
+    );
+  }
+}
+
 async function main() {
+  assertLocalDevelopmentDatabase();
   console.log('Seeding Nirog Bhoomi Research OS with sample data...\n');
 
   await purgeExisting();
