@@ -629,7 +629,7 @@ export async function updateSource(
         {
           rejected_fields: unknownFields,
           editable_fields: [...EDITABLE_FIELDS],
-          note: 'Review status, categories, tags and collections have their own operations.',
+          note: 'Knowledge categories are automatic; tags and collections have dedicated operations.',
         },
       );
     }
@@ -805,49 +805,12 @@ export async function assignReviewer(
   note?: string,
 ): Promise<SourceSummary> {
   requirePermission(ctx, 'source.update');
-
-  return withOrg(ctx.organizationId, async (sql) => {
-    const existing = await sql.one<SourceSummary>(
-      `SELECT ${SUMMARY_COLUMNS} FROM sources s WHERE s.id = $1`,
-      [sourceId],
-    );
-    if (!existing) throw notFound('source', sourceId);
-
-    const reviewer = await sql.one<{ id: string; full_name: string }>(
-      `SELECT id, full_name FROM users WHERE id = $1 AND status = 'active'`,
-      [reviewerId],
-    );
-    if (!reviewer) throw notFound('user', reviewerId);
-
-    const row = await sql.one<SourceSummary>(
-      `UPDATE sources s
-       SET assigned_reviewer_id = $1,
-           review_status = CASE WHEN s.review_status = 'unreviewed' THEN 'needs_review'::review_status
-                                ELSE s.review_status END,
-           updated_by = $2, updated_at = now(), version = version + 1
-       WHERE s.id = $3
-       RETURNING ${SUMMARY_COLUMNS}`,
-      [reviewerId, ctx.userId, sourceId],
-    );
-
-    if (note) {
-      await sql.query(
-        `INSERT INTO annotations (organization_id, source_id, user_id, annotation_type, body, assigned_to, created_via)
-         VALUES ($1,$2,$3,'review_request',$4,$5,$6::source_interface)`,
-        [ctx.organizationId, sourceId, ctx.userId, note, reviewerId, ctx.sourceInterface],
-      );
-    }
-
-    await recordAudit(sql, ctx, {
-      action: 'source.reviewer_assigned',
-      resourceType: 'source',
-      resourceId: sourceId,
-      previousState: { assigned_reviewer_id: existing.assigned_reviewer_id },
-      newState: { assigned_reviewer_id: reviewerId, reviewer_name: reviewer.full_name },
-    });
-
-    return withDashboardUrl(row!);
-  });
+  void sourceId;
+  void reviewerId;
+  void note;
+  throw invalidInput(
+    'Source review assignments have been removed. Sources are available immediately and do not need a reviewer.',
+  );
 }
 
 /**
@@ -888,8 +851,19 @@ export async function changeReviewStatus(
   },
   batch?: BatchAuthorization,
 ): Promise<SourceSummary> {
-  const approving = ['approved', 'approved_with_conditions'].includes(input.status);
-  requirePermission(ctx, approving ? 'source.approve' : 'source.reject');
+  void batch;
+
+  // Compatibility for older clients that still have the retired review
+  // action cached. They may harmlessly ask to "approve" a source, but they
+  // can no longer move a source back into needs_review/in_review/rejected.
+  if (input.status !== 'approved') {
+    throw invalidInput(
+      'The source review workflow has been removed. Sources are available immediately and cannot be moved into a review state.',
+      { requested_status: input.status },
+    );
+  }
+
+  requirePermission(ctx, 'source.approve');
 
   return withOrg(ctx.organizationId, async (sql) => {
     const existing = await sql.one<SourceSummary>(
@@ -901,84 +875,31 @@ export async function changeReviewStatus(
       throw versionConflict('source', existing.version);
     }
 
-    if (existing.review_status === input.status) return withDashboardUrl(existing);
+    if (existing.review_status === 'approved') return withDashboardUrl(existing);
 
-    const allowed = ALLOWED_TRANSITIONS[existing.review_status] ?? [];
-    if (!allowed.includes(input.status)) {
-      throw conflict(
-        `A source cannot move directly from "${existing.review_status}" to "${input.status}".`,
-        { current_status: existing.review_status, allowed_transitions: allowed },
-      );
-    }
-
-    if (input.status === 'rejected' && !input.reason?.trim()) {
-      throw invalidInput('A reason is required when rejecting a source.', {
-        required_field: 'reason',
-      });
-    }
-    if (input.status === 'approved_with_conditions' && !input.conditions?.length) {
-      throw invalidInput('At least one condition is required for conditional approval.', {
-        required_field: 'conditions',
-      });
-    }
-
-    if (existing.processing_status !== 'completed' &&
-        existing.processing_status !== 'completed_with_warnings' &&
-        approving) {
-      throw conflict(
-        `This source is still ${existing.processing_status}. Wait for processing to finish before approving it.`,
-        { processing_status: existing.processing_status },
-      );
-    }
-
-    const confirmationId = batch
-      ? batch.confirmationId
-      : await guardConfirmation(sql, ctx, {
-          actionType: 'changeSourceReviewStatus',
-          resourceType: 'source',
-          resourceIds: [sourceId],
-          actionPayload: { status: input.status },
-          humanSummary: `Change the review status of "${truncate(existing.title, 80)}" from ${existing.review_status} to ${input.status}.`,
-          confirmationId: input.confirmationId,
-        });
-
-    const rejected = input.status === 'rejected';
     const row = await sql.one<SourceSummary>(
       `UPDATE sources s
-       SET review_status = $1::review_status,
-           approved_by = CASE WHEN $2 THEN $3::uuid ELSE s.approved_by END,
-           approved_at = CASE WHEN $2 THEN now() ELSE s.approved_at END,
-           rejected_by = CASE WHEN $4 THEN $3::uuid ELSE s.rejected_by END,
-           rejected_at = CASE WHEN $4 THEN now() ELSE s.rejected_at END,
-           rejection_reason = CASE WHEN $4 THEN $5 ELSE s.rejection_reason END,
-           review_conditions = $6::jsonb,
-           last_verified_at = CASE WHEN $2 THEN now() ELSE s.last_verified_at END,
-           updated_by = $3, updated_at = now(), version = version + 1
-       WHERE s.id = $7
+       SET review_status = 'approved'::review_status,
+           assigned_reviewer_id = NULL,
+           rejection_reason = NULL,
+           review_conditions = '[]'::jsonb,
+           approved_by = $1,
+           approved_at = coalesce(s.approved_at, now()),
+           last_verified_at = coalesce(s.last_verified_at, now()),
+           updated_by = $1,
+           updated_at = now(),
+           version = version + 1
+       WHERE s.id = $2
        RETURNING ${SUMMARY_COLUMNS}`,
-      [
-        input.status,
-        approving,
-        ctx.userId,
-        rejected,
-        input.reason ?? null,
-        JSON.stringify(input.conditions ?? []),
-        sourceId,
-      ],
+      [ctx.userId, sourceId],
     );
 
     await recordAudit(sql, ctx, {
-      action: `source.review_${input.status}`,
+      action: 'source.legacy_review_normalized',
       resourceType: 'source',
       resourceId: sourceId,
       previousState: { review_status: existing.review_status },
-      newState: {
-        review_status: input.status,
-        reason: input.reason ?? null,
-        conditions: input.conditions ?? [],
-      },
-      confirmationId,
-      parentAuditId: batch?.parentAuditId ?? null,
+      newState: { review_status: 'approved' },
     });
 
     return withDashboardUrl(row!);
@@ -1008,7 +929,7 @@ export async function archiveSource(
           resourceType: 'source',
           resourceIds: [sourceId],
           actionPayload: {},
-          humanSummary: `Archive the source "${truncate(existing.title, 80)}" (${existing.review_status}). It will be removed from default searches but kept, and can be restored.`,
+          humanSummary: `Archive the source "${truncate(existing.title, 80)}". It will be removed from default searches but kept, and can be restored.`,
           confirmationId,
         });
 
@@ -1374,20 +1295,10 @@ export async function bulkChangeReviewStatus(
   ctx: ActorContext,
   input: { sourceIds: string[]; status: string; reason?: string; confirmationId?: string | null },
 ): Promise<BulkResult<SourceSummary>> {
-  const approving = ['approved', 'approved_with_conditions'].includes(input.status);
-  requirePermission(ctx, approving ? 'source.approve' : 'source.reject');
-
-  const batch = await authorizeBatch(ctx, {
-    actionType: 'bulkChangeSourceReviewStatus',
-    resourceIds: input.sourceIds,
-    actionPayload: { status: input.status },
-    humanSummary: `Change the review status of ${input.sourceIds.length} source(s) to ${input.status}.`,
-    auditAction: 'source.bulk_review_status_changed',
-    confirmationId: input.confirmationId,
-  });
-
-  return runBulk(ctx, input.sourceIds, (id) =>
-    changeReviewStatus(ctx, id, { status: input.status, reason: input.reason }, batch),
+  requirePermission(ctx, 'source.update');
+  void input;
+  throw invalidInput(
+    'Bulk source review changes have been removed. Sources are available immediately and do not use review states.',
   );
 }
 
