@@ -117,7 +117,7 @@ WITH classified AS (
       )
     ) AS corpus
   FROM sources s
-  WHERE s.status = 'active'::lifecycle_status
+  WHERE s.status != 'deleted'::lifecycle_status
 ),
 chosen AS (
   SELECT
