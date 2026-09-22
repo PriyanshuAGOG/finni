@@ -31,7 +31,7 @@ export default async function ResearchInboxPage({
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-slate-900">Research Inbox</h1>
-        <p className="text-sm text-slate-500">Newly added sources, approved immediately and enriching in the background.</p>
+        <p className="text-sm text-slate-500">Newly added sources, available immediately and enriching in the background.</p>
       </div>
 
       <AddSourceForm />
