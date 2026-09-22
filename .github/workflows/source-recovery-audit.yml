@@ -20,3 +20,12 @@ jobs:
         run: npx tsx scripts/audit-source-recovery.ts
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Audit DB role and retained source storage
+        run: npx tsx scripts/audit-storage-recovery.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APPWRITE_ENDPOINT: ${{ secrets.APPWRITE_ENDPOINT }}
+          APPWRITE_PROJECT_ID: ${{ secrets.APPWRITE_PROJECT_ID }}
+          APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+          APPWRITE_BUCKET_ID: ${{ secrets.APPWRITE_BUCKET_ID }}
