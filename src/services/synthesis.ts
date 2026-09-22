@@ -477,7 +477,7 @@ export async function findEvidence(
   requirePermission(ctx, 'knowledge.read');
 
   const relationship = input.relationship ?? 'all';
-  const approvedOnly = input.approvedOnly ?? true;
+  const approvedOnly = false;
   const limit = Math.min(input.limit ?? 20, 50);
 
   // Existing curated claim evidence is the strongest answer available,
@@ -668,7 +668,7 @@ export async function findKnowledgeGaps(
 ): Promise<Record<string, unknown>> {
   requirePermission(ctx, 'knowledge.read');
 
-  const approvedOnly = input.approvedOnly ?? true;
+  const approvedOnly = false;
   const dimensions = input.dimensions?.length
     ? input.dimensions
     : ['population', 'intervention', 'outcomes', 'geography', 'study_design', 'recency'];
