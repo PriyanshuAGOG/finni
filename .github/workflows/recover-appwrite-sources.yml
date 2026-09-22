@@ -1,0 +1,33 @@
+name: Recover Appwrite sources
+
+on:
+  push:
+    branches:
+      - qa/source-recovery-audit
+    paths:
+      - 'scripts/recover-appwrite-sources.ts'
+      - '.github/workflows/recover-appwrite-sources.yml'
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+        env:
+          DATABASE_URL: postgres://test:test@127.0.0.1:5432/test
+      - name: Recover retained source snapshots
+        run: npx tsx scripts/recover-appwrite-sources.ts
+        env:
+          RECOVERY_CONFIRM: restore-nb-sources-2026-09-22
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APPWRITE_ENDPOINT: ${{ secrets.APPWRITE_ENDPOINT }}
+          APPWRITE_PROJECT_ID: ${{ secrets.APPWRITE_PROJECT_ID }}
+          APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+          APPWRITE_BUCKET_ID: ${{ secrets.APPWRITE_BUCKET_ID }}
+          ORG_SLUG: ${{ secrets.ORG_SLUG }}
