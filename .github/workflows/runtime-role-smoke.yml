@@ -1,0 +1,22 @@
+name: Runtime role smoke
+
+on:
+  push:
+    branches:
+      - qa/runtime-role-smoke
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Validate restricted production DB role
+        run: npx tsx scripts/smoke-runtime-role.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
