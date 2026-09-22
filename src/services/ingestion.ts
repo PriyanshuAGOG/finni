@@ -28,6 +28,7 @@ import { extensionForContentType, getStorageDriver } from '../lib/storage';
 import { recordAudit } from './audit';
 import { enqueue, ENRICHMENT_STAGES } from './processing';
 import { upsertTag, refreshTagUsage } from './taxonomy';
+import { assignCanonicalKnowledgeCategory } from './knowledge-category';
 import { findDuplicates, withDashboardUrl, type DuplicateMatch } from './source';
 
 export type DuplicateBehavior =
@@ -580,6 +581,10 @@ async function createFromExtraction(
       ],
     );
 
+    await assignCanonicalKnowledgeCategory(sql, sourceId, extraction.title, text, {
+      assignmentSource: ctx.sourceInterface === 'custom_gpt' ? 'custom_gpt' : 'rule',
+      assignedBy: ctx.userId,
+    });
     await applyInitialTaxonomy(sql, ctx, sourceId, input);
 
     if (input.notes) {
@@ -656,20 +661,6 @@ async function applyInitialTaxonomy(
   sourceId: string,
   input: CreateFromExtractionInput,
 ): Promise<void> {
-  if (input.categoryIds?.length) {
-    const valid = await sql.query<{ id: string }>(
-      `SELECT id FROM categories WHERE id = ANY($1::uuid[]) AND status = 'active'`,
-      [input.categoryIds],
-    );
-    for (const category of valid) {
-      await sql.query(
-        `INSERT INTO source_categories (source_id, category_id, assignment_source, approved, assigned_by)
-         VALUES ($1,$2,$3::assignment_source,true,$4) ON CONFLICT DO NOTHING`,
-        [sourceId, category.id, ctx.sourceInterface === 'custom_gpt' ? 'custom_gpt' : 'human', ctx.userId],
-      );
-    }
-  }
-
   if (input.tags?.length) {
     const tagIds: string[] = [];
     for (const name of input.tags) {
@@ -763,6 +754,11 @@ async function attachAsVersion(
     ],
   );
 
+  await assignCanonicalKnowledgeCategory(sql, sourceId, extraction.title, text, {
+    assignmentSource: ctx.sourceInterface === 'custom_gpt' ? 'custom_gpt' : 'rule',
+    assignedBy: ctx.userId,
+  });
+
   let processingJobId: string | null = null;
   for (const stage of ENRICHMENT_STAGES.filter((s) => s !== 'extract')) {
     const job = await enqueue(sql, ctx, {
@@ -827,7 +823,7 @@ async function existingSourceResult(
     current_stage: null,
     warnings: [`No new record was created. ${match.explanation}`],
     dashboard_url: `/library/${source.id}`,
-    message: `This is already in the library as "${truncate(source.title, 80)}" (${source.review_status}). No new record was created.`,
+    message: `This is already in the library as "${truncate(source.title, 80)}". No new record was created.`,
   };
 }
 
