@@ -1,13 +1,36 @@
 import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 import { getEnv } from './env';
 
+const RUNTIME_ROLE = 'nirog_app_runtime';
+
 let pool: Pool | null = null;
+const configuredClients = new WeakSet<PoolClient>();
+
+/**
+ * pg currently treats sslmode=require/prefer/verify-ca as verify-full, but
+ * warns that pg v9 will change those semantics. Preserve the current,
+ * stricter behavior explicitly so production is warning-free and future
+ * upgrades cannot silently weaken certificate verification.
+ */
+export function normalizePostgresConnectionString(connectionString: string): string {
+  try {
+    const url = new URL(connectionString);
+    const sslMode = url.searchParams.get('sslmode')?.toLowerCase();
+    if (sslMode && ['prefer', 'require', 'verify-ca'].includes(sslMode)) {
+      url.searchParams.set('sslmode', 'verify-full');
+      return url.toString();
+    }
+  } catch {
+    // Let pg report malformed/non-URL connection strings as it did before.
+  }
+  return connectionString;
+}
 
 export function getPool(): Pool {
   if (pool) return pool;
   const env = getEnv();
   pool = new Pool({
-    connectionString: env.DATABASE_URL,
+    connectionString: normalizePostgresConnectionString(env.DATABASE_URL),
     max: env.DATABASE_POOL_MAX,
     idleTimeoutMillis: 30_000,
   });
@@ -17,6 +40,45 @@ export function getPool(): Pool {
     console.error(JSON.stringify({ level: 'error', msg: 'pg idle client error', err: err.message }));
   });
   return pool;
+}
+
+async function getRuntimeClient(): Promise<PoolClient> {
+  const client = await getPool().connect();
+  if (configuredClients.has(client)) return client;
+
+  try {
+    // DATABASE_URL may point at the Neon owner account. Never let normal
+    // application/service code inherit that role: it has BYPASSRLS and an
+    // unscoped DELETE would otherwise cross tenant boundaries.
+    await client.query(`SET ROLE ${RUNTIME_ROLE}`);
+
+    const check = await client.query<{
+      current_user: string;
+      rolsuper: boolean;
+      rolbypassrls: boolean;
+    }>(
+      `SELECT current_user, r.rolsuper, r.rolbypassrls
+       FROM pg_roles r
+       WHERE r.rolname = current_user`,
+    );
+    const identity = check.rows[0];
+    if (
+      !identity ||
+      identity.current_user !== RUNTIME_ROLE ||
+      identity.rolsuper ||
+      identity.rolbypassrls
+    ) {
+      throw new Error(
+        `Unsafe database runtime identity: expected ${RUNTIME_ROLE} with RLS enforced.`,
+      );
+    }
+
+    configuredClients.add(client);
+    return client;
+  } catch (err) {
+    client.release(true);
+    throw err;
+  }
 }
 
 export async function closePool(): Promise<void> {
@@ -38,17 +100,36 @@ export type Sql = {
 };
 
 function wrap(client: PoolClient): Sql {
+  // node-postgres does not support overlapping client.query calls on one
+  // checked-out client. Several service methods intentionally use
+  // Promise.all for independent reads, so serialize them here while keeping
+  // the service API concurrent-friendly.
+  let tail: Promise<void> = Promise.resolve();
+
+  function run<T>(operation: () => Promise<T>): Promise<T> {
+    const result = tail.then(operation, operation);
+    tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
   return {
-    async query<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []) {
-      const res = await client.query<T>(text, params);
-      return res.rows;
+    query<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []) {
+      return run(async () => {
+        const res = await client.query<T>(text, params);
+        return res.rows;
+      });
     },
-    async one<T extends QueryResultRow = QueryResultRow>(
+    one<T extends QueryResultRow = QueryResultRow>(
       text: string,
       params: unknown[] = [],
     ): Promise<T | null> {
-      const res = await client.query<T>(text, params);
-      return res.rows[0] ?? null;
+      return run(async () => {
+        const res = await client.query<T>(text, params);
+        return res.rows[0] ?? null;
+      });
     },
   };
 }
@@ -64,7 +145,7 @@ export async function withOrg<T>(
   organizationId: string,
   fn: (sql: Sql) => Promise<T>,
 ): Promise<T> {
-  const client = await getPool().connect();
+  const client = await getRuntimeClient();
   try {
     await client.query('BEGIN');
     await client.query('SELECT set_config($1, $2, true)', [
@@ -90,7 +171,7 @@ export async function withOrgTx<T>(
   organizationId: string,
   fn: (sql: Sql, client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await getPool().connect();
+  const client = await getRuntimeClient();
   try {
     await client.query('BEGIN');
     await client.query('SELECT set_config($1, $2, true)', [
@@ -114,7 +195,7 @@ export async function withOrgTx<T>(
  * are exempt from row-level security may be touched here.
  */
 export async function withoutOrg<T>(fn: (sql: Sql) => Promise<T>): Promise<T> {
-  const client = await getPool().connect();
+  const client = await getRuntimeClient();
   try {
     return await fn(wrap(client));
   } finally {
