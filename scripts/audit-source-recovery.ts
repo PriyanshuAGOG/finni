@@ -10,7 +10,7 @@ type Row = {
   created_at: string;
   updated_at: string;
   normalized_text_length: number;
-  original_url: string | null;
+  canonical_url: string | null;
   category_names: string[];
 };
 
@@ -36,7 +36,7 @@ async function main() {
            s.created_at::text,
            s.updated_at::text,
            length(coalesce(s.normalized_text, ''))::int AS normalized_text_length,
-           s.original_url,
+           s.canonical_url,
            coalesce(
              array_agg(c.name ORDER BY c.position, c.name)
                FILTER (WHERE c.id IS NOT NULL),
