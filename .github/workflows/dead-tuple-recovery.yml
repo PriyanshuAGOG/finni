@@ -1,0 +1,24 @@
+name: Dead tuple recovery audit
+
+on:
+  push:
+    branches:
+      - qa/source-recovery-audit
+    paths:
+      - 'scripts/audit-dead-tuples.ts'
+      - '.github/workflows/dead-tuple-recovery.yml'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Inspect recently deleted heap tuples
+        run: npx tsx scripts/audit-dead-tuples.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
