@@ -22,8 +22,23 @@ async function main() {
     );
     console.log('IDENTITY', JSON.stringify(identity.rows[0]));
 
-    // pageinspect is read-only for the inspection functions used below.
-    await client.query('CREATE EXTENSION IF NOT EXISTS pageinspect');
+    const membership = await client.query(
+      `SELECT pg_has_role(current_user, 'neon_superuser', 'MEMBER') AS is_member,
+              pg_has_role(current_user, 'neon_superuser', 'USAGE') AS can_set_role`
+    );
+    console.log('NEON_SUPERUSER_MEMBERSHIP', JSON.stringify(membership.rows[0]));
+
+    // Neon's project-owner role is normally allowed to SET ROLE into the
+    // managed neon_superuser role for extension management. Use that role
+    // only to install pageinspect, then reset immediately. All page reads
+    // below remain forensic/read-only.
+    if (membership.rows[0]?.can_set_role) {
+      await client.query('SET ROLE neon_superuser');
+      await client.query('CREATE EXTENSION IF NOT EXISTS pageinspect');
+      await client.query('RESET ROLE');
+    } else {
+      throw new Error('Current Neon owner cannot SET ROLE neon_superuser; pageinspect unavailable.');
+    }
 
     for (const relation of ['sources','source_versions','source_categories']) {
       const stats = await client.query(
