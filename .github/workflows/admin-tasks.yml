@@ -49,6 +49,13 @@ jobs:
           # once the app is running). Falls back to DATABASE_URL if unset.
           MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
 
+      - name: Reclassify retained knowledge sources
+        if: github.event_name == 'push' || inputs.task == 'db-migrate'
+        run: npm run db:reclassify-sources
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ORG_SLUG: ${{ secrets.ORG_SLUG }}
+
       - name: Provision the Appwrite storage bucket
         if: inputs.task == 'appwrite-provision'
         run: npm run appwrite:provision
