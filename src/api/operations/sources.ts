@@ -171,9 +171,9 @@ export const ingestUrlOperation = defineOperation({
 
 Use this when the user explicitly asks to save, log or add a link, or when an external research candidate has been chosen for saving. Do not call it speculatively for a URL the user merely mentioned.
 
-The newly created source is approved immediately -- this deployment has no review queue. Extraction confidence and any extraction warnings still travel with the record, so mention them if they're present.
+The newly created source is available immediately. The server automatically assigns exactly one category from Movement, Exercise and Yoga; Lifestyle; Food; or Miscellaneous. Extraction warnings still travel with the record, so mention material warnings if present.
 
-Pass \`summary\` with a concise summary you write from the extracted content, so it's stored immediately rather than waiting for the async summarize job. Always supply \`category_ids\` -- find the best-fitting category (create one with createCategory if none fits) so nothing is left uncategorized.
+Pass \`summary\` when you already have one so useful context can appear immediately while background enrichment continues.
 
 If a duplicate exists this returns DUPLICATE_SOURCE with the existing record; tell the user what already exists and ask whether to open it, save a related copy, or capture a new version. Do not silently create a second copy.
 
@@ -296,9 +296,9 @@ export const createSourceOperation = defineOperation({
 
 Use this when there is no URL to fetch, when the publisher blocks automated access and you've read the article yourself (paywalled or bot-blocking sites like the New York Times or WSJ), or when the user has supplied the text.
 
-Pass \`summary\` with a concise summary and \`categories\` with the best-fitting category id (create one with createCategory if none fits) -- for a URL, use ingestUrl instead: it captures the original and its metadata.
+Pass \`summary\` when available. The server automatically assigns exactly one of the four fixed knowledge categories. For a fetchable URL, prefer ingestUrl because it captures the original and its metadata.
 
-This operation writes. The created source is approved immediately.`,
+This operation writes. The created source is available immediately.`,
   gptDescription:
     'Creates a source from supplied text, including pasted articles or notes. The source is available immediately and auto-categorized into one of four fixed categories. Pass summary when available. Writes.',
   tags: ['sources', 'ingestion'],
@@ -410,15 +410,11 @@ This operation writes.`,
   riskLevel: 'medium',
   input: z.object({
     sourceId: z.string().uuid(),
-    add_category_ids: z.array(z.string().uuid()).optional(),
-    remove_category_ids: z.array(z.string().uuid()).optional(),
     add_tags: z.array(z.string()).optional(),
     remove_tag_ids: z.array(z.string().uuid()).optional(),
   }),
   handler: (input, { ctx }) =>
     updateSourceTaxonomy(ctx, input.sourceId, {
-      addCategoryIds: input.add_category_ids,
-      removeCategoryIds: input.remove_category_ids,
       addTags: input.add_tags,
       removeTagIds: input.remove_tag_ids,
     }),
@@ -502,6 +498,7 @@ This operation writes.`,
   permission: 'source.update',
   scopes: ['source.write', 'source.review'],
   riskLevel: 'medium',
+  internalOnly: true,
   input: z.object({
     sourceId: z.string().uuid(),
     reviewer_id: z.string().uuid(),
