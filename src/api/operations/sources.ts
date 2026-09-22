@@ -37,20 +37,19 @@ export const listSourcesOperation = defineOperation({
   method: 'GET',
   path: '/sources',
   summary: 'List and filter library sources',
-  description: `Returns a filtered, paginated list of sources with their review and processing state.
+  description: `Returns a filtered, paginated list of library sources with category and processing information.
 
-Use this for browsing and filtering -- "show sources awaiting review", "what did I add this week", "list everything in this collection". For relevance-ranked topic search use searchKnowledge instead; this operation does not rank by relevance to a question.
+Use this for browsing and filtering by query, category, type, tag or collection. For relevance-ranked topic search use searchKnowledge instead.
 
 This operation does not modify anything.`,
   gptDescription:
-    'Filtered, paginated browse of sources by review/processing state. For relevance-ranked topic search use searchKnowledge instead. Does not modify anything.',
+    'Browse and filter library sources by query, category, type, tag, collection or processing state. For relevance-ranked topic search use searchKnowledge. Does not modify anything.',
   tags: ['sources'],
   permission: 'source.read',
   scopes: ['source.read', 'knowledge.read'],
   riskLevel: 'low',
   input: z.object({
     query: z.string().optional(),
-    review_status: stringArray.optional(),
     processing_status: stringArray.optional(),
     source_type: stringArray.optional(),
     category_id: z.string().uuid().optional(),
@@ -61,7 +60,6 @@ This operation does not modify anything.`,
     published_after: z.string().optional(),
     published_before: z.string().optional(),
     added_by: z.string().uuid().optional(),
-    assigned_reviewer_id: z.string().uuid().optional(),
     archived: z.coerce.boolean().optional(),
     duplicates_only: z.coerce.boolean().optional(),
     cursor: z.string().optional(),
@@ -72,7 +70,6 @@ This operation does not modify anything.`,
   handler: async (input, { ctx }) => {
     const result = await listSources(ctx, {
       query: input.query,
-      reviewStatus: input.review_status,
       processingStatus: input.processing_status,
       sourceType: input.source_type,
       categoryId: input.category_id,
@@ -83,7 +80,6 @@ This operation does not modify anything.`,
       publishedAfter: input.published_after,
       publishedBefore: input.published_before,
       addedBy: input.added_by,
-      assignedReviewerId: input.assigned_reviewer_id,
       archived: input.archived,
       duplicatesOnly: input.duplicates_only,
       cursor: input.cursor,
@@ -103,7 +99,7 @@ export const getSourceOperation = defineOperation({
   method: 'GET',
   path: '/sources/{sourceId}',
   summary: 'Get one source with its metadata, taxonomy and optional detail',
-  description: `Returns the full record for one source: metadata, summaries, categories, tags, collections, review state and processing state.
+  description: `Returns the full record for one source: metadata, summaries, categories, tags, collections and processing state.
 
 Use this when a specific source has been identified and you need its details, or before proposing an edit. The optional include flags add study metadata, claims, annotations, versions and activity.
 
@@ -111,7 +107,7 @@ Full text is not returned by default and is truncated when requested; use search
 
 This operation does not modify anything.`,
   gptDescription:
-    'Full record for one source: metadata, review/processing state, and optionally study metadata, claims, annotations, versions, activity. Use searchSourcePassages for exact passages rather than full text. Does not modify anything.',
+    'Full record for one source with metadata, category, processing state and optional study metadata, claims, annotations, versions or activity. Use searchSourcePassages for exact passages. Does not modify anything.',
   tags: ['sources'],
   permission: 'source.read',
   scopes: ['source.read', 'knowledge.read'],
@@ -185,7 +181,7 @@ If the fetch fails (EXTRACTION_FAILED, often a 403 from a paywalled or bot-block
 
 This operation writes. Supply an Idempotency-Key header to make a retry safe.`,
   gptDescription:
-    "Fetches a URL, extracts content, checks duplicates, creates a source, queues enrichment. Approved immediately. Pass summary and category_ids -- always categorize. On DUPLICATE_SOURCE, offer options. On fetch failure (paywalled/bot-blocked), read it yourself and use createSource. Writes.",
+    "Fetches a URL, checks duplicates, saves it immediately, auto-categorizes into one of four fixed categories, and queues enrichment. Pass summary when available. On duplicate, offer the returned options. Writes.",
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -194,10 +190,8 @@ This operation writes. Supply an Idempotency-Key header to make a retry safe.`,
   input: z.object({
     url: z.string().min(1).describe('The URL to save.'),
     collection_ids: z.array(z.string().uuid()).optional(),
-    category_ids: z.array(z.string().uuid()).optional(),
     tags: z.array(z.string()).optional(),
     notes: z.string().nullish(),
-    assign_reviewer_id: z.string().uuid().nullish(),
     priority: z.enum(['low', 'normal', 'high']).optional(),
     duplicate_behavior: duplicateBehavior.optional(),
     processing_profile: z.enum(['standard', 'metadata_only', 'full']).optional(),
@@ -215,10 +209,8 @@ This operation writes. Supply an Idempotency-Key header to make a retry safe.`,
     ingestUrl(ctx, {
       url: input.url,
       collectionIds: input.collection_ids,
-      categoryIds: input.category_ids,
       tags: input.tags,
       notes: input.notes,
-      assignReviewerId: input.assign_reviewer_id,
       priority: input.priority,
       duplicateBehavior: input.duplicate_behavior,
       processingProfile: input.processing_profile,
@@ -232,11 +224,11 @@ export const ingestUrlsBatchOperation = defineOperation({
   method: 'POST',
   path: '/sources/ingest-batch',
   summary: 'Save several URLs with shared metadata',
-  description: `Saves multiple URLs in one call, applying the same collections, categories and tags to each.
+  description: `Saves multiple URLs in one call, applying the same collections and tags to each. Every created source is categorized automatically.
 
 Use this when the user asks to save several links at once or has selected several research candidates. Each URL is reported separately as created, duplicate or failed -- report the failures, never just the successes.
 
-Defaults to returning the existing record for duplicates rather than failing the whole batch. All created sources are approved immediately.
+Defaults to returning the existing record for duplicates rather than failing the whole batch. Created sources are available immediately.
 
 This operation writes. Batch size is capped by configuration.`,
   tags: ['sources', 'ingestion'],
@@ -247,7 +239,6 @@ This operation writes. Batch size is capped by configuration.`,
   input: z.object({
     urls: z.array(z.string().min(1)).min(1).max(50),
     collection_ids: z.array(z.string().uuid()).optional(),
-    category_ids: z.array(z.string().uuid()).optional(),
     tags: z.array(z.string()).optional(),
     duplicate_behavior: duplicateBehavior.optional(),
   }),
@@ -255,7 +246,6 @@ This operation writes. Batch size is capped by configuration.`,
     ingestUrlsBatch(ctx, {
       urls: input.urls,
       collectionIds: input.collection_ids,
-      categoryIds: input.category_ids,
       tags: input.tags,
       duplicateBehavior: input.duplicate_behavior,
     }),
@@ -270,9 +260,9 @@ export const ingestIdentifierOperation = defineOperation({
 
 Use this when the user gives a DOI or PMID rather than a URL. If the identifier is already in the library the existing record is returned and nothing new is created.
 
-This operation writes. The created source is approved immediately.`,
+This operation writes. The created source is available immediately and categorized automatically.`,
   gptDescription:
-    'Resolves a DOI or PMID to its bibliographic record and saves it as a source. Returns the existing record if already in the library. Writes; approved immediately.',
+    'Resolves a DOI or PMID and saves it to the library. Returns the existing record if already present. The saved source is available immediately and auto-categorized. Writes.',
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -283,7 +273,6 @@ This operation writes. The created source is approved immediately.`,
       doi: z.string().optional(),
       pmid: z.string().optional(),
       collection_ids: z.array(z.string().uuid()).optional(),
-      category_ids: z.array(z.string().uuid()).optional(),
       tags: z.array(z.string()).optional(),
       summary: z.string().max(4000).optional().describe('A concise summary to store immediately.'),
     })
@@ -293,7 +282,6 @@ This operation writes. The created source is approved immediately.`,
       doi: input.doi,
       pmid: input.pmid,
       collectionIds: input.collection_ids,
-      categoryIds: input.category_ids,
       tags: input.tags,
       summary: input.summary,
     }),
@@ -312,7 +300,7 @@ Pass \`summary\` with a concise summary and \`categories\` with the best-fitting
 
 This operation writes. The created source is approved immediately.`,
   gptDescription:
-    'Creates a source from text you already have -- pasted article, manual note, or an article you read yourself after ingestUrl failed (paywalled/bot-blocked). Pass summary and categories. Writes; approved immediately.',
+    'Creates a source from supplied text, including pasted articles or notes. The source is available immediately and auto-categorized into one of four fixed categories. Pass summary when available. Writes.',
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -327,7 +315,6 @@ This operation writes. The created source is approved immediately.`,
     publisher: z.string().nullish(),
     publication_date: z.string().nullish(),
     abstract: z.string().nullish(),
-    categories: z.array(z.string().uuid()).optional(),
     tags: z.array(z.string()).optional(),
     collection_ids: z.array(z.string().uuid()).optional(),
     summary: z.string().max(4000).optional().describe('A concise summary to store immediately.'),
@@ -342,7 +329,6 @@ This operation writes. The created source is approved immediately.`,
       publisher: input.publisher,
       publicationDate: input.publication_date,
       abstract: input.abstract,
-      categoryIds: input.categories,
       tags: input.tags,
       collectionIds: input.collection_ids,
       summary: input.summary,
@@ -358,13 +344,13 @@ export const updateSourceOperation = defineOperation({
 
 Use this only when the user explicitly asks to correct or change source metadata.
 
-This action does NOT change review status (use changeSourceReviewStatus), categories or tags (use updateSourceTaxonomy), or collection membership (use addSourceToCollections). Fields a reviewer has locked cannot be changed without the source.lock_fields permission.
+Knowledge category assignment is automatic. Use updateSourceTaxonomy only for tags, and addSourceToCollections for collection membership. Locked fields require source.lock_fields permission.
 
 Pass expected_version to detect a concurrent edit; a mismatch returns VERSION_CONFLICT rather than overwriting someone else's change.
 
 This operation writes.`,
   gptDescription:
-    'Updates editable metadata (title, authors, publisher, dates, abstract, summaries, findings, limitations) on an existing source. Does not change review status, taxonomy or collections -- use those dedicated operations. Locked fields need source.lock_fields. Writes.',
+    'Updates editable source metadata such as title, authors, publisher, dates, abstract, summaries, findings and limitations. Category assignment remains automatic. Locked fields need source.lock_fields. Writes.',
   tags: ['sources'],
   permission: 'source.update',
   scopes: ['source.write'],
@@ -410,16 +396,14 @@ export const updateSourceTaxonomyOperation = defineOperation({
   operationId: 'updateSourceTaxonomy',
   method: 'POST',
   path: '/sources/{sourceId}/taxonomy',
-  summary: 'Add or remove categories and tags on a source',
-  description: `Adds or removes category assignments and tags for one source.
+  summary: 'Add or remove tags on a source',
+  description: `Adds or removes tags for one source. Knowledge categories are assigned automatically and cannot be changed through this operation.
 
-Use this when the user asks to file a source under a category or to tag it. Categories must already exist -- use findSimilarCategories and createCategory first if the category is new. Tags are created on demand.
-
-This action does not change review status or collection membership.
+This action does not change collection membership.
 
 This operation writes.`,
   gptDescription:
-    'Adds or removes categories and tags on a source. Categories must already exist -- use findSimilarCategories/createCategory first if new. Tags are created on demand. Does not change review status or collection membership. Writes.',
+    'Adds or removes tags on a source. Knowledge categories are automatic and cannot be manually changed. Writes.',
   tags: ['sources', 'taxonomy'],
   permission: 'source.update',
   scopes: ['source.write', 'taxonomy.write'],
@@ -547,6 +531,7 @@ This operation writes and requires the source.approve or source.reject permissio
   scopes: ['source.review'],
   riskLevel: 'medium',
   mayRequireConfirmation: true,
+  internalOnly: true,
   input: ConfirmationInput.extend({
     sourceId: z.string().uuid(),
     status: z.enum([
