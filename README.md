@@ -6,7 +6,7 @@ An AI-native research knowledge management platform: turn every source the Nirog
 
 - A **complete application**, not a mockup: real Postgres schema with row-level security, a real ingestion pipeline (URL/PDF/DOI/PMID/YouTube/manual), a real Postgres-backed job queue and worker, real hybrid search (full-text + semantic + identifier + taxonomy + evidence-weighted ranking), a real AI abstraction layer (works fully offline via a deterministic provider, or with Anthropic/OpenAI), a versioned API with 100+ operations, a generated OpenAPI 3.1 spec for Custom GPT Actions, and a functional Next.js dashboard — all wired together and tested against a live database, not stubbed.
 - **One domain model.** The dashboard, the API (and therefore the Custom GPT), and the worker all call the same service functions in `src/services/*.ts`. There is no separate, weaker path for GPT-originated writes.
-- **Source-first, human-governed.** AI proposes (summaries, classifications, extracted claims, evidence assessments); humans decide (approve, reject, lock a field, override a claim's status). Nothing is born approved.
+- **Source-first and immediately usable.** A successfully saved source enters the active library immediately, receives exactly one of four fixed knowledge categories, and is searchable while background enrichment continues. Human governance remains for claim interpretation, annotations, locked fields, safety review and destructive actions.
 
 See `docs/architecture.md` for diagrams, `docs/admin-guide.md` / `docs/user-guide.md` for how to operate it, and `docs/gpt-setup-guide.md` to connect the Custom GPT.
 

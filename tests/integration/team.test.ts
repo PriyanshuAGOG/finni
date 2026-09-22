@@ -24,7 +24,7 @@ afterEach(() => {
 
 /** The console email provider logs the invite link; tests read it back from there. */
 function captureInviteToken(logSpy: ReturnType<typeof vi.spyOn>): string {
-  const logged = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
+  const logged = logSpy.mock.calls.map((call: unknown[]) => String(call[0])).join('\n');
   const match = logged.match(/token=([^\s&]+)/);
   if (!match) throw new Error('No invite token found in logged email output.');
   return decodeURIComponent(match[1]);

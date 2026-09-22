@@ -7,33 +7,22 @@
 - **A DOI or PubMed ID**: paste it directly — metadata is resolved automatically via Crossref / PubMed.
 - **A PDF or pasted text**: upload the file, or paste the text as a manual source when there's no fetchable URL.
 
-Everything you add starts **unreviewed**. It's searchable and visible in the Research Inbox immediately, but it does not count as approved organizational evidence until someone with review permission approves it.
+Every successfully saved source is available immediately. Processing and AI enrichment may continue in the background, but there is no source approval queue.
 
-## Understanding review status
-
-| Status | Meaning |
-| --- | --- |
-| `needs_review` / `unreviewed` | Just added, nobody has looked at it yet. |
-| `in_review` | Someone is actively reviewing it. |
-| `approved` / `approved_with_conditions` | Counts as organizational evidence. Conditions (if any) are shown on the record. |
-| `rejected` | Reviewed and declined, with a stated reason. |
-| `disputed` | Was approved, now under question. |
-| `superseded` | Replaced by a newer, stronger source — both records stay linked. |
-
-Search and the assistant always tell you which of these you're looking at — never assume something found in search is approved.
+Every active source is automatically filed into exactly one of four categories: **Movement, Exercise and Yoga**, **Lifestyle**, **Food**, or **Miscellaneous**.
 
 ## Searching and asking questions
 
 The Search page (and the Custom GPT) support two modes:
 
-- **Library only** — approved sources exclusively, closest to "what can we officially say."
-- **Library first** — searches approved material first, and can widen to unreviewed or external sources when asked.
+- **Library only** — searches the internal Nirog Bhoomi library only.
+- **Library first** — searches the internal library first and can use external discovery when the internal library does not cover the question or when you explicitly request recent external research.
 
 Check "Generate cited answer" for a synthesized response with numbered citations back to real passages — every citation is checked against what was actually retrieved before it's shown to you, so a citation you see is never invented.
 
 ## Organizing: categories, tags, collections
 
-- **Categories** are the controlled taxonomy (hierarchical, curated) — the system actively warns you before creating one that's a near-duplicate of an existing one.
+- **Categories** are fixed to Movement, Exercise and Yoga; Lifestyle; Food; and Miscellaneous. Assignment is automatic.
 - **Tags** are lightweight and created on the fly.
 - **Collections** group sources around a topic, research question, or project (e.g. a content brief's source pool).
 
@@ -43,8 +32,8 @@ A claim is one specific, checkable statement — not a topic. Each claim shows i
 
 ## Research briefs and content
 
-Briefs and generated content are built the same way as a synthesized answer: from a fixed, approved-by-default set of sources, with a citation on every factual statement. `validateContentCitations` independently re-checks a draft's statements against its cited sources before you rely on it — use it before publishing anything.
+Briefs and generated content are built from selected active library sources, with a citation on every factual statement. `validateContentCitations` independently re-checks a draft's statements against its cited sources before you rely on it — use it before publishing anything.
 
 ## Using the Custom GPT
 
-The GPT can do anything your account can do in the dashboard — no more, no less. It will always tell you plainly when something is unreviewed or external, and it will ask you to explicitly confirm anything high-risk (archiving, merging, bulk changes) before it happens — it cannot skip that step. Ask "what did you just do?" any time to see exactly what changed.
+The GPT can do anything its connected account and scopes allow — no more, no less. It distinguishes internal library evidence from external discovery, and it will ask you to explicitly confirm anything high-risk (archiving, merging, bulk changes) before it happens — it cannot skip that step. Ask "what did you just do?" any time to see exactly what changed.

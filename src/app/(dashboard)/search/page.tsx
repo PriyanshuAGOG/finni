@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { requireSessionContext } from '../../lib/session';
 import { searchKnowledge } from '../../../services/search';
 import { synthesizeKnowledge } from '../../../services/synthesis';
-import { ReviewStatusBadge } from '../../../components/badges';
 
 export default async function SearchPage({
   searchParams,
@@ -21,11 +20,11 @@ export default async function SearchPage({
           query,
           mode,
           includePassages: true,
-          includeUnreviewed: mode !== 'library_only',
+          includeUnreviewed: true,
           limit: 15,
         }),
         wantsAnswer
-          ? synthesizeKnowledge(ctx, { question: query, approvedOnly: mode === 'library_only' })
+          ? synthesizeKnowledge(ctx, { question: query, approvedOnly: false })
           : Promise.resolve(null),
       ])
     : [null, null];
@@ -48,7 +47,7 @@ export default async function SearchPage({
         <div>
           <label className="label" htmlFor="mode">Mode</label>
           <select id="mode" name="mode" defaultValue={mode} className="input">
-            <option value="library_only">Library only (approved)</option>
+            <option value="library_only">Library only</option>
             <option value="library_first">Library first</option>
           </select>
         </div>
@@ -80,7 +79,6 @@ export default async function SearchPage({
                     <Link href={c.dashboard_url} className="text-brand-600 hover:underline">
                       {c.title}
                     </Link>{' '}
-                    ({c.review_status})
                   </li>
                 ))}
               </ol>
@@ -92,8 +90,7 @@ export default async function SearchPage({
       {results && (
         <div className="space-y-3">
           <p className="text-xs text-slate-500">
-            {results.results.length} result(s) — {results.scope.approved_count} approved,{' '}
-            {results.scope.unreviewed_count} unreviewed.
+            {results.results.length} result(s) from the selected scope.
           </p>
           {results.results.map((r) => (
             <div key={`${r.entity_type}-${r.id}`} className="card p-4">
@@ -104,7 +101,7 @@ export default async function SearchPage({
                   </Link>
                   <p className="mt-1 text-xs text-slate-500">{r.relevance_reason}</p>
                 </div>
-                {r.review_status && <ReviewStatusBadge status={r.review_status} />}
+
               </div>
               {r.matched_passages.length > 0 && (
                 <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">

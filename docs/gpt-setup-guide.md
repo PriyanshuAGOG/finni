@@ -23,7 +23,7 @@ Each person using the GPT authenticates as themselves; the GPT can only do what 
      encode(digest('<a-strong-random-secret>', 'sha256'), 'hex'),
      'Nirog Bhoomi Research Assistant',
      '["https://chat.openai.com/aip/oauth/callback"]',
-     '["profile.read","knowledge.read","source.read","source.write","source.review","collection.read","collection.write","taxonomy.read","taxonomy.write","claim.read","claim.write","claim.review","annotation.read","annotation.write","research.run","brief.read","brief.write","content.generate","audit.read"]'
+     '["profile.read","knowledge.read","source.read","source.write","collection.read","collection.write","taxonomy.read","claim.read","claim.write","claim.review","annotation.read","annotation.write","research.run","brief.read","brief.write","content.generate","audit.read"]'
    );
    ```
    (Omit `admin.integrations` unless the GPT should be able to manage other integrations — it generally shouldn't.)
@@ -55,7 +55,7 @@ A single credential acts as one pre-authorized, constrained user. Do not use thi
 1. Import by URL (`https://<your-deployment>/gpt-actions.yaml`) or paste the contents of `openapi/gpt-actions.yaml` directly.
 2. Verify the servers block points at your actual deployment, not `localhost` and not the `research.nirogbhoomi.com` example domain baked into the repo. `research.nirogbhoomi.com` is a placeholder that has never been a real, DNS-resolving host — if it ends up in the imported schema, every action call fails at the network level with a generic "connection failed" from ChatGPT (a request that never reaches the server at all, so nothing appears in `/errors` or the server logs either). The `/gpt-actions.yaml` route rewrites this placeholder to the actual request origin automatically, so importing by URL from your real deployment (not by pasting a copy of the file that still has the placeholder in it) always produces the right value. If you change your deployment's domain later, re-import (or edit) the Action in the GPT editor — ChatGPT bakes in the servers URL at import time and does not re-fetch it automatically.
 
-ChatGPT's Actions editor caps a single GPT at **30 operations**. The registry has 109; `openapi/gpt-actions.yaml` ships a curated 30-operation subset (search, save, taxonomy, collections, claims, review, briefs, content, confirmations — every tool `docs/gpt-instructions.md` names by ID, plus the minimum extra reads/writes needed for a full research workflow). Admin operations (team, integrations, audit browsing) stay dashboard-only regardless of the cap.
+ChatGPT's Actions editor caps a single GPT at **30 operations**. The registry has 100+ operations; `openapi/gpt-actions.yaml` ships a curated subset for the internal Research Assistant: search, save, the fixed taxonomy, collections, claims, briefs, content and confirmations. Source approval and category-creation operations are deliberately excluded. Admin operations (team, integrations, audit browsing) stay dashboard-only regardless of the cap.
 
 To change which 30 are included, edit `CORE_GPT_ACTIONS` in `scripts/generate-openapi.ts` and re-run `npm run openapi:generate` — it fails loudly if the curated set exceeds 30 or references an operationId that doesn't exist. To cover more ground than one GPT allows, create a second Custom GPT pointed at a different curated set (e.g. a "Review & Admin" GPT) rather than trying to fit everything into one.
 
@@ -69,9 +69,9 @@ Work through each of these before sharing the GPT with the team:
 
 - [ ] `getCurrentUser` — confirm it returns the expected identity, roles and permissions.
 - [ ] `searchKnowledge` — ask a question the seed data covers (e.g. "what do we know about post-meal walking?"); confirm results and citations look right.
-- [ ] `ingestUrl` on a real article URL — confirm it reports `needs_review`, not approved.
+- [ ] `ingestUrl` on a real article URL — confirm it becomes available immediately and is assigned exactly one of the four fixed categories.
 - [ ] `ingestUrl` again on the **same** URL — confirm it reports the duplicate rather than creating a second copy.
-- [ ] `createCategory` for a name close to an existing one — confirm it surfaces the near-duplicate instead of silently creating it.
+- [ ] `listCategories` — confirm only Movement, Exercise and Yoga; Lifestyle; Food; and Miscellaneous are active for knowledge sources.
 - [ ] `archiveSource` — confirm the GPT walks through `requestActionConfirmation` → shows you the summary → `confirmAction` → retries, rather than archiving in one step.
 - [ ] Ask "what did you just do?" — confirm `getMyActionHistory` reflects the actions above.
 - [ ] Attempt an action requiring a permission the connected account lacks — confirm a clear `FORBIDDEN` explanation, not a silent workaround.

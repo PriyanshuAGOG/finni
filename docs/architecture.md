@@ -83,13 +83,13 @@ sequenceDiagram
         Ing-->>API: DUPLICATE_SOURCE (409) + existing record
     else no duplicate
         Ing->>Ing: fetch + extract (Readability / PDF / YouTube)
-        Ing->>DB: INSERT source (review_status=needs_review)
-        Ing->>DB: INSERT source_version (v1)
+        Ing->>DB: INSERT active source (immediately usable)
+        Ing->>DB: assign exactly one fixed category + INSERT source_version (v1)
         Ing->>Q: enqueue summarize, classify, study_metadata,
         Ing->>Q: claims, embeddings, evidence_assessment
         Ing-->>API: 200 { source_id, processing_status: queued }
     end
-    API-->>User: source id, dashboard URL, "unreviewed" warning
+    API-->>User: source id, category, dashboard URL
 
     loop each queued stage
         W->>Q: claim next job (FOR UPDATE SKIP LOCKED)
@@ -113,10 +113,9 @@ flowchart LR
     Hybrid --> Ident["Exact identifier\n(DOI / PMID)"]
     Hybrid --> Tax["Taxonomy match"]
     Hybrid --> Evid["Evidence-strength\nby study design"]
-    Hybrid --> Appr["Approval status"]
     Hybrid --> Rec["Recency\n(saturating, not linear)"]
     Hybrid --> Rerank["Rerank"]
-    FTS & Vec & Ident & Tax & Evid & Appr & Rec & Rerank --> Results["Ranked results\nwith origin label:\ninternal_approved / unreviewed / archived / external_web / mixed"]
+    FTS & Vec & Ident & Tax & Evid & Rec & Rerank --> Results["Ranked results\nwith origin label:\ninternal / archived / external_web / mixed"]
     Results --> Synth["synthesizeKnowledge\n(model sees ONLY retrieved passages)"]
     Synth --> Verify["Citation verification\n(marker not in context → stripped)"]
     Verify --> Answer["Cited answer"]
