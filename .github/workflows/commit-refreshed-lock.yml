@@ -5,6 +5,7 @@ on:
     branches:
       - qa/final-platform-audit
     paths:
+      - 'package.json'
       - '.github/workflows/commit-refreshed-lock.yml'
 
 permissions:
