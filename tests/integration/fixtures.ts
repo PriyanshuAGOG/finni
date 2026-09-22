@@ -9,12 +9,32 @@ export interface TestOrg {
   viewerCtx: ActorContext;
 }
 
+let safetyChecked = false;
+
+function assertSafeIntegrationDatabase(): void {
+  if (safetyChecked) return;
+  safetyChecked = true;
+  const raw = process.env.DATABASE_URL;
+  if (!raw) throw new Error('DATABASE_URL is required for integration tests.');
+  const url = new URL(raw);
+  const local = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  const name = url.pathname.replace(/^\//, '');
+  const clearlyTestDb = /(?:^|[_-])test(?:$|[_-])/i.test(name);
+  if (!local && !clearlyTestDb && process.env.ALLOW_REMOTE_TEST_DATABASE !== 'true') {
+    throw new Error(
+      'Integration tests refuse to run against a remote database that is not clearly a test database. ' +
+      'Use an isolated test database or set ALLOW_REMOTE_TEST_DATABASE=true only for a disposable test instance.',
+    );
+  }
+}
+
 /**
  * Creates an isolated organization, an administrator and a viewer for one
  * test file. Each test file gets its own organization so tests never see
  * each other's data even when RLS is the thing under test.
  */
 export async function createTestOrg(label: string): Promise<TestOrg> {
+  assertSafeIntegrationDatabase();
   const organizationId = randomUUID();
   const slug = `test-${label}-${randomUUID().slice(0, 8)}`;
 
