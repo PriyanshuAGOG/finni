@@ -6,6 +6,11 @@ name: Admin tasks
 # any developer machine, so nothing needs to be downloaded or installed
 # locally. Trigger from the Actions tab -> "Admin tasks" -> "Run workflow".
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'db/migrations/**'
   workflow_dispatch:
     inputs:
       task:
@@ -34,7 +39,7 @@ jobs:
       - run: npm ci
 
       - name: Apply database migrations
-        if: inputs.task == 'db-migrate'
+        if: github.event_name == 'push' || inputs.task == 'db-migrate'
         run: npm run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
