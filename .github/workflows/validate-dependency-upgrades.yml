@@ -7,8 +7,12 @@ on:
     paths:
       - 'package.json'
       - 'package-lock.json'
+      - 'src/**'
+      - 'scripts/**'
       - 'tests/**'
-      - '.github/workflows/validate-dependency-upgrades.yml'
+      - 'docs/**'
+      - 'README.md'
+      - '.github/workflows/**'
 
 jobs:
   validate:
