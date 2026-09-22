@@ -1,4 +1,4 @@
-import { closePool, withoutOrg } from '../src/lib/db';
+import { closePool, withOrg, withoutOrg } from '../src/lib/db';
 
 type Row = {
   id: string;
@@ -24,7 +24,7 @@ async function main() {
   console.log('ORGANIZATIONS', JSON.stringify(orgs));
 
   for (const org of orgs) {
-    const rows = await withoutOrg((sql) =>
+    const rows = await withOrg(org.id, (sql) =>
       sql.query<Row>(
         `SELECT
            s.id,
