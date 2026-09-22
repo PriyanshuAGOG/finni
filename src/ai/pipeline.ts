@@ -93,13 +93,12 @@ export async function classifySource(
     capability: 'fast',
     schema: ClassificationSchema,
     schemaName: 'Classification',
-    system: `You assign documents to an existing controlled taxonomy.
+    system: `You classify Nirog Bhoomi knowledge into a fixed four-category taxonomy.
 
-Prefer an existing category over proposing a new one. Proposing a near-
-duplicate of an existing category is worse than leaving a document
-slightly under-classified, because duplicate taxonomy is expensive to
-undo. ${input.allowNewCategoryProposals ? 'You may propose new categories, but each proposal must list the existing categories it is closest to.' : 'Do not propose new categories.'}`,
-    instruction: `Classify the document "${input.title}" against the candidate categories. Assign only categories the document is genuinely about, with a calibrated confidence for each.`,
+Choose exactly one supplied category. Use "Miscellaneous" when the document is
+not primarily about movement/exercise/yoga, lifestyle, or food. Never propose
+or invent a new category.`,
+    instruction: `Classify the document "${input.title}" into exactly one candidate category. Return one category with a calibrated confidence.`,
     payload: {
       candidate_categories: input.candidateCategories,
       candidate_collections: input.candidateCollections ?? [],
