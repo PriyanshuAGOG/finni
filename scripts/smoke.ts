@@ -23,7 +23,21 @@ import { HANDLERS, contextForJob } from '../src/worker/handlers';
 import { claimNextJob } from '../src/services/processing';
 import type { ProcessingJob } from '../src/services/processing';
 
+function assertSafeSmokeDatabase(): void {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) throw new Error('DATABASE_URL is required.');
+  const url = new URL(raw);
+  const local = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  const clearlyTestDb = /(?:^|[_-])test(?:$|[_-])/i.test(url.pathname.replace(/^\//, ''));
+  if (!local && !clearlyTestDb) {
+    throw new Error(
+      'scripts/smoke.ts refuses to run against a non-test remote database. Use an isolated test database.',
+    );
+  }
+}
+
 async function main() {
+  assertSafeSmokeDatabase();
   const orgId = randomUUID();
   const userId = randomUUID();
 
