@@ -21,6 +21,15 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      - name: Attempt Appwrite project resume
+        continue-on-error: true
+        run: npx tsx scripts/try-resume-appwrite.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APPWRITE_ENDPOINT: ${{ secrets.APPWRITE_ENDPOINT }}
+          APPWRITE_PROJECT_ID: ${{ secrets.APPWRITE_PROJECT_ID }}
+          APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+
       - name: Audit DB role and retained source storage
         run: npx tsx scripts/audit-storage-recovery.ts
         env:
