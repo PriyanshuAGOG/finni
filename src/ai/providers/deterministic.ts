@@ -21,8 +21,8 @@ import { normalizeText, tokenize, truncate } from '../../lib/text';
  * to end in local development, CI and tests, with stable outputs that
  * tests can assert on.
  *
- * It is deliberately conservative: it reports low confidence, marks
- * everything for human review, and prefers `null` over a guess. Set
+ * It is deliberately conservative: it reports low confidence and prefers
+ * `null` over a guess. Set
  * AI_PROVIDER=anthropic (or openai) for production-quality enrichment.
  */
 export class DeterministicProvider implements AiProvider {
@@ -229,9 +229,7 @@ export class DeterministicProvider implements AiProvider {
         .filter((s) => /\b(adverse|side effect|contraindicat|hypoglyc|risk of harm|safety|warning|toxicity)\b/i.test(s))
         .slice(0, 3)
         .map((s) => truncate(s, 300)),
-      questions_requiring_review: [
-        'Confirm that the extracted summary reflects the source accurately before approval.',
-      ],
+      questions_requiring_review: [],
       confidence: 0.35,
     };
   }
@@ -262,7 +260,7 @@ export class DeterministicProvider implements AiProvider {
       })
       .filter((c) => c.hits > 0)
       .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 6);
+      .slice(0, 1);
 
     return {
       categories: scored.map((s) => ({

@@ -10,11 +10,6 @@ import {
 } from '../../services/synthesis';
 import { withOrg } from '../../lib/db';
 
-const reviewStatus = z.enum([
-  'unreviewed', 'needs_review', 'in_review', 'approved',
-  'approved_with_conditions', 'rejected', 'disputed', 'superseded',
-]);
-
 const evidenceStatus = z.enum([
   'supported', 'likely_supported', 'mixed', 'contested', 'contradicted',
   'insufficient_evidence', 'outdated', 'retracted_source_dependency', 'unreviewed',
@@ -22,7 +17,6 @@ const evidenceStatus = z.enum([
 
 const SearchFiltersSchema = z
   .object({
-    review_status: z.array(reviewStatus).optional(),
     source_types: z.array(z.string()).optional(),
     study_designs: z.array(z.string()).optional(),
     categories: z.array(z.string().uuid()).optional(),
@@ -115,9 +109,9 @@ Use this whenever the user asks what the organization already knows, asks you to
 
 This returns retrieval results with matched passages and locators. It does NOT write an answer -- use synthesizeKnowledge for that. It does NOT search the web; use previewExternalResearch or startResearchJob for external discovery.
 
-Every result states its origin (internal_approved, internal_unreviewed or internal_archived). Never describe an unreviewed result as approved organizational evidence. This operation does not modify anything.`,
+Every active library source is searchable immediately. Archived records remain explicitly identified. This operation does not modify anything.`,
   gptDescription:
-    'Hybrid search (full-text, semantic, taxonomy, evidence-weighted) over internal sources, claims, collections and briefs. Search before synthesizing. Returns passages with locators, never web results. Every result states origin (approved/unreviewed/archived) -- never call unreviewed approved.',
+    'Hybrid search over internal sources, claims, collections and briefs. Search before synthesizing. Returns real matched passages with locators, never web results. All active library sources are searchable immediately.',
   tags: ['knowledge'],
   permission: 'knowledge.read',
   scopes: ['knowledge.read'],
@@ -127,7 +121,7 @@ Every result states its origin (internal_approved, internal_unreviewed or intern
     mode: z
       .enum(['library_only', 'library_first', 'web_discovery', 'evidence_review'])
       .optional()
-      .describe('library_only restricts to approved internal sources by default.'),
+      .describe('library_only restricts retrieval to internal library sources.'),
     entity_types: z
       .array(z.enum(['sources', 'claims', 'collections', 'annotations', 'briefs']))
       .optional()
@@ -135,10 +129,6 @@ Every result states its origin (internal_approved, internal_unreviewed or intern
     filters: SearchFiltersSchema,
     limit: z.coerce.number().int().min(1).max(50).optional(),
     include_passages: z.boolean().optional().describe('Return matching passages with locators.'),
-    include_unreviewed: z
-      .boolean()
-      .optional()
-      .describe('Include sources that have not been approved. They are labelled as such.'),
     include_archived: z.boolean().optional(),
     explain_ranking: z.boolean().optional().describe('Return the per-signal score breakdown.'),
   }),
@@ -147,7 +137,6 @@ Every result states its origin (internal_approved, internal_unreviewed or intern
       query: 'What evidence do we have on post-meal walking and glucose?',
       mode: 'library_only',
       entity_types: ['sources', 'claims'],
-      filters: { review_status: ['approved'] },
       limit: 20,
       include_passages: true,
     },
@@ -158,7 +147,6 @@ Every result states its origin (internal_approved, internal_unreviewed or intern
       mode: input.mode,
       entityTypes: input.entity_types,
       filters: {
-        reviewStatus: input.filters?.review_status,
         sourceTypes: input.filters?.source_types,
         studyDesigns: input.filters?.study_designs,
         categoryIds: input.filters?.categories,
@@ -179,7 +167,7 @@ Every result states its origin (internal_approved, internal_unreviewed or intern
       },
       limit: input.limit,
       includePassages: input.include_passages,
-      includeUnreviewed: input.include_unreviewed,
+      includeUnreviewed: true,
       includeArchived: input.include_archived,
       explainRanking: input.explain_ranking,
     }),
@@ -196,9 +184,9 @@ Use this when the user wants an answer rather than a list of results -- a cited 
 
 The service rejects any citation the model produced that is not in the retrieval context, so citations returned here always correspond to real passages. Statements whose citations were all invalid are dropped rather than shown uncited.
 
-Defaults to approved sources only. Setting approved_only to false includes unreviewed material, which must then be described as unreviewed in your answer. This operation does not use the web and does not modify anything.`,
+All active library sources are eligible. This operation does not use the web and does not modify anything.`,
   gptDescription:
-    'Produces a cited answer built only from internal sources; citations not matching a real retrieved passage are stripped. Search first unless you already hold source ids. Defaults to approved sources only; unreviewed material must be labeled as such if included.',
+    'Produces a cited answer built only from active internal sources; citations not matching a real retrieved passage are stripped. Search first unless you already hold source ids.',
   tags: ['knowledge'],
   permission: 'knowledge.read',
   scopes: ['knowledge.read'],
@@ -208,7 +196,6 @@ Defaults to approved sources only. Setting approved_only to false includes unrev
     mode: z.enum(['library_only', 'library_first', 'evidence_review']).optional(),
     source_ids: z.array(z.string().uuid()).optional().describe('Restrict to these sources.'),
     collection_ids: z.array(z.string().uuid()).optional(),
-    approved_only: z.boolean().optional().describe('Defaults to true.'),
     include_contradictions: z.boolean().optional(),
     include_limitations: z.boolean().optional(),
     include_safety_notes: z.boolean().optional(),
@@ -224,7 +211,7 @@ Defaults to approved sources only. Setting approved_only to false includes unrev
       mode: input.mode,
       sourceIds: input.source_ids,
       collectionIds: input.collection_ids,
-      approvedOnly: input.approved_only,
+      approvedOnly: false,
       includeContradictions: input.include_contradictions,
       includeLimitations: input.include_limitations,
       includeSafetyNotes: input.include_safety_notes,
@@ -253,7 +240,6 @@ This does not create or modify claims. Use createClaim or addClaimEvidence for t
   input: z.object({
     claim_or_question: z.string().min(1),
     relationship: z.enum(['supporting', 'contradicting', 'qualifying', 'all']).optional(),
-    approved_only: z.boolean().optional(),
     collection_ids: z.array(z.string().uuid()).optional(),
     limit: z.coerce.number().int().min(1).max(50).optional(),
   }),
@@ -261,7 +247,7 @@ This does not create or modify claims. Use createClaim or addClaimEvidence for t
     findEvidence(ctx, {
       claimOrQuestion: input.claim_or_question,
       relationship: input.relationship,
-      approvedOnly: input.approved_only,
+      approvedOnly: false,
       collectionIds: input.collection_ids,
       limit: input.limit,
     }),
@@ -311,7 +297,6 @@ This operation does not modify anything.`,
   input: z.object({
     topic: z.string().min(1),
     collection_ids: z.array(z.string().uuid()).optional(),
-    approved_only: z.boolean().optional(),
     dimensions: z
       .array(z.enum(['population', 'intervention', 'outcomes', 'geography', 'study_design', 'recency']))
       .optional(),
@@ -320,7 +305,7 @@ This operation does not modify anything.`,
     findKnowledgeGaps(ctx, {
       topic: input.topic,
       collectionIds: input.collection_ids,
-      approvedOnly: input.approved_only,
+      approvedOnly: false,
       dimensions: input.dimensions,
     }),
 });

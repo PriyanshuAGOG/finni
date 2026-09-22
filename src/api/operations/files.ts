@@ -12,7 +12,7 @@ export const ingestFileOperation = defineOperation({
 
 Use this only when the caller can actually supply a multipart file upload -- most Custom GPT conversations cannot, in which case suggest ingestUrl or createSource with pasted text instead. Duplicate files (identical content hash) return the existing source rather than creating a copy.
 
-This operation writes. The created source is approved immediately.`,
+This operation writes. The created source is available immediately and is categorized automatically into one of the four fixed knowledge categories.`,
   tags: ['sources', 'ingestion'],
   permission: 'source.create',
   scopes: ['source.write'],
@@ -21,8 +21,8 @@ This operation writes. The created source is approved immediately.`,
   input: z.object({
     file: z.instanceof(File).optional(),
     collection_ids: z.array(z.string().uuid()).optional(),
-    category_ids: z.array(z.string().uuid()).optional(),
     tags: z.array(z.string()).optional(),
+    summary: z.string().max(4000).optional().describe('A concise summary to store immediately.'),
   }),
   handler: async (input, { ctx }) => {
     if (!input.file) throw invalidInput('A file is required.');
@@ -32,8 +32,8 @@ This operation writes. The created source is approved immediately.`,
       mimeType: input.file.type || 'application/octet-stream',
       body,
       collectionIds: input.collection_ids,
-      categoryIds: input.category_ids,
       tags: input.tags,
+      summary: input.summary,
     });
   },
 });

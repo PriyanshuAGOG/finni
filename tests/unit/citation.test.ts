@@ -17,10 +17,10 @@ const SOURCE: GatheredSource = {
 };
 
 describe('formatCitation', () => {
-  it('numbered style includes review status and a link', () => {
+  it('numbered style includes the citation marker and original link without review workflow metadata', () => {
     const result = formatCitation(SOURCE, 'numbered', '[1]');
     expect(result).toContain('[1]');
-    expect(result).toContain('approved');
+    expect(result).not.toContain('Review status');
     expect(result).toContain('https://example.com/article');
   });
 

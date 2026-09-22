@@ -6,7 +6,6 @@ import { extractDoi, extractPmid, truncate } from '../lib/text';
 import { embed, rerank as rerankProvider } from '../ai/provider';
 import { understandQuery } from '../ai/pipeline';
 import { chunkLocator } from '../extraction/chunk';
-import { APPROVED_REVIEW_STATUSES } from './source';
 
 export type ResearchMode = 'library_only' | 'library_first' | 'web_discovery' | 'evidence_review';
 
@@ -185,15 +184,11 @@ export async function searchKnowledge(
     if (!filters.population && understanding.population) filters.population = understanding.population;
   }
 
-  const approvedOnly =
-    !input.includeUnreviewed &&
-    (filters.reviewStatus?.length
-      ? filters.reviewStatus.every((s) => APPROVED_REVIEW_STATUSES.includes(s))
-      : mode === 'library_only');
-
-  if (!filters.reviewStatus?.length && approvedOnly) {
-    filters.reviewStatus = APPROVED_REVIEW_STATUSES;
-  }
+  // Source review is no longer an active product concept. All active library
+  // sources are searchable immediately. Ignore legacy review-status filters
+  // so older Custom GPT schemas cannot accidentally hide valid sources.
+  delete filters.reviewStatus;
+  const approvedOnly = false;
 
   const semanticQuery = understanding?.semantic_query ?? input.query;
   const keywords = understanding?.keywords ?? [];
@@ -241,8 +236,8 @@ export async function searchKnowledge(
   results.sort((a, b) => b.score - a.score);
   const page = results.slice(0, limit);
 
-  const approvedCount = page.filter((r) => r.origin === 'internal_approved').length;
-  const unreviewedCount = page.filter((r) => r.origin === 'internal_unreviewed').length;
+  const approvedCount = page.filter((r) => r.origin !== 'internal_archived' && r.entity_type === 'source').length;
+  const unreviewedCount = 0;
 
   await withOrg(ctx.organizationId, (sql) =>
     sql.query(
@@ -295,23 +290,8 @@ function describeGaps(
 ): string[] {
   const gaps: string[] = [];
   if (results.length === 0) {
-    gaps.push(
-      approvedOnly
-        ? 'No approved sources matched this query. There may be unreviewed material; searching with include_unreviewed will show it, clearly labelled as not yet approved.'
-        : 'No sources matched this query within the selected scope.',
-    );
+    gaps.push('No sources matched this query within the selected scope.');
     return gaps;
-  }
-  if (approvedOnly && results.length < 3) {
-    gaps.push(
-      `Only ${results.length} approved source(s) matched. The evidence base for this question is thin.`,
-    );
-  }
-  const unreviewed = results.filter((r) => r.origin === 'internal_unreviewed').length;
-  if (unreviewed > 0) {
-    gaps.push(
-      `${unreviewed} of these results are unreviewed and do not count as approved organizational evidence.`,
-    );
   }
   if (filters.population) {
     gaps.push(
@@ -366,9 +346,6 @@ async function searchSources(
     ];
     const f = input.filters;
 
-    if (f.reviewStatus?.length) {
-      where.push(`s.review_status = ANY(${add(f.reviewStatus)}::review_status[])`);
-    }
     if (f.sourceTypes?.length) {
       // Values coming from query understanding may not all be valid enum
       // members, so unknown ones are dropped rather than failing the query.
@@ -513,11 +490,7 @@ async function searchSources(
       const identifier = row.identifier_hit ? 1 : 0;
       const taxonomyScore = Math.min(1, (row.taxonomy_hits ?? 0) / 2);
       const evidence = DESIGN_STRENGTH[row.source_type] ?? 0.2;
-      const approval = APPROVED_REVIEW_STATUSES.includes(row.review_status)
-        ? 1
-        : row.review_status === 'rejected' || row.review_status === 'superseded'
-          ? 0
-          : 0.4;
+      const approval = 1;
       const authority =
         row.source_authority_rating === 'high'
           ? 1
@@ -560,12 +533,7 @@ async function searchSources(
         collections: labels.collections,
         original_url: row.canonical_url,
         dashboard_url: `/library/${row.id}`,
-        origin:
-          row.status === 'archived'
-            ? 'internal_archived'
-            : APPROVED_REVIEW_STATUSES.includes(row.review_status)
-              ? 'internal_approved'
-              : 'internal_unreviewed',
+        origin: row.status === 'archived' ? 'internal_archived' : 'internal_approved',
         score: Number(score.toFixed(4)),
         ...(input.explainRanking ? { score_breakdown: breakdown } : {}),
       } satisfies SearchResult;
@@ -592,11 +560,7 @@ function explainRelevance(
       ? `Matched because ${reasons.join(', ')}.`
       : 'Matched on overall relevance to the query.';
 
-  const caveat = APPROVED_REVIEW_STATUSES.includes(row.review_status)
-    ? ''
-    : ' This source is not yet approved.';
-
-  return base + caveat;
+  return base;
 }
 
 async function fetchPassages(

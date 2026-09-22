@@ -6,6 +6,11 @@ name: Admin tasks
 # any developer machine, so nothing needs to be downloaded or installed
 # locally. Trigger from the Actions tab -> "Admin tasks" -> "Run workflow".
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'db/migrations/**'
   workflow_dispatch:
     inputs:
       task:
@@ -18,6 +23,7 @@ on:
           - bootstrap-admin
           - list-users
           - list-api-clients
+          - seed-categories
 
 jobs:
   run:
@@ -33,7 +39,7 @@ jobs:
       - run: npm ci
 
       - name: Apply database migrations
-        if: inputs.task == 'db-migrate'
+        if: github.event_name == 'push' || inputs.task == 'db-migrate'
         run: npm run db:migrate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -42,6 +48,13 @@ jobs:
           # restricted app role (it must be, for RLS to actually apply
           # once the app is running). Falls back to DATABASE_URL if unset.
           MIGRATION_DATABASE_URL: ${{ secrets.MIGRATION_DATABASE_URL }}
+
+      - name: Reclassify retained knowledge sources
+        if: github.event_name == 'push' || inputs.task == 'db-migrate'
+        run: npm run db:reclassify-sources
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ORG_SLUG: ${{ secrets.ORG_SLUG }}
 
       - name: Provision the Appwrite storage bucket
         if: inputs.task == 'appwrite-provision'
@@ -76,3 +89,10 @@ jobs:
         run: npm run db:list-api-clients
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Seed the fixed top-level category taxonomy
+        if: inputs.task == 'seed-categories'
+        run: npm run db:seed-categories
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ORG_SLUG: ${{ secrets.ORG_SLUG }}

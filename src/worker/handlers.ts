@@ -13,6 +13,7 @@ import {
 import { chunkDocument } from '../extraction/chunk';
 import { toVectorLiteral } from '../services/search';
 import { recomputeEvidenceStatus } from '../services/claim';
+import { classifyKnowledgeCategory } from '../services/knowledge-category';
 import { recordAudit } from '../services/audit';
 import { externalSearch } from '../extraction/external-search';
 import { buildSearchQueries } from '../services/research';
@@ -141,28 +142,29 @@ const classify: Handler = async (job, ctx) => {
   const sourceId = job.source_id!;
   await markJobProgress(job.id, { stage: 'classifying', progress: 0.4 });
 
-  const { source, categories, collections, allowAiCategories } = await withOrg(
+  const { source, categories, collections } = await withOrg(
     ctx.organizationId,
     async (sql) => {
       const source = await loadSource(sql, sourceId);
-      const categories = await sql.query<{ id: string; name: string; synonyms: string[]; ai_usage_guidance: string | null }>(
-        `SELECT id, name, synonyms, ai_usage_guidance FROM categories WHERE status = 'active' ORDER BY name`,
+      const categories = await sql.query<{
+        id: string;
+        slug: string;
+        name: string;
+        synonyms: string[];
+        ai_usage_guidance: string | null;
+      }>(
+        `SELECT id, slug, name, synonyms, ai_usage_guidance
+         FROM categories
+         WHERE status = 'active'
+           AND slug IN ('movement-exercise-yoga','lifestyle','food','miscellaneous')
+         ORDER BY position, name`,
       );
       const collections = await sql.query<{ id: string; name: string; research_question: string | null }>(
         `SELECT id, name, research_question FROM collections
          WHERE status = 'active' AND collection_type IN ('clinical_topic','research_project','programme')
          LIMIT 40`,
       );
-      const org = await sql.one<{ settings: Record<string, unknown> }>(
-        `SELECT settings FROM organizations WHERE id = $1`,
-        [ctx.organizationId],
-      );
-      return {
-        source,
-        categories,
-        collections,
-        allowAiCategories: Boolean(org?.settings?.allow_ai_category_creation),
-      };
+      return { source, categories, collections };
     },
   );
 
@@ -182,29 +184,38 @@ const classify: Handler = async (job, ctx) => {
         name: c.name,
         research_question: c.research_question ?? undefined,
       })),
-      allowNewCategoryProposals: allowAiCategories,
+      allowNewCategoryProposals: false,
     },
   );
 
   return withOrg(ctx.organizationId, async (sql) => {
     const warnings: string[] = [];
-    const validIds = new Set(categories.map((c) => c.id));
-    let assigned = 0;
+    const validById = new Map(categories.map((c) => [c.id, c]));
+    const aiChoice = [...classification.categories]
+      .filter((c) => validById.has(c.category_id))
+      .sort((a, b) => b.confidence - a.confidence)[0];
 
-    for (const category of classification.categories) {
-      if (!validIds.has(category.category_id)) {
-        warnings.push(`The model proposed an unknown category id and it was ignored.`);
-        continue;
-      }
-      // AI assignments are stored unapproved. They are visible and
-      // searchable, but a human still confirms them.
+    const localChoice = classifyKnowledgeCategory(source.title, source.normalized_text!);
+    const chosen =
+      (aiChoice ? validById.get(aiChoice.category_id) : undefined) ??
+      categories.find((c) => c.slug === localChoice.slug) ??
+      categories.find((c) => c.slug === 'miscellaneous');
+
+    if (chosen) {
+      await sql.query(`DELETE FROM source_categories WHERE source_id = $1`, [sourceId]);
       await sql.query(
-        `INSERT INTO source_categories (source_id, category_id, assignment_source, confidence, approved)
-         VALUES ($1,$2,'ai',$3,false)
-         ON CONFLICT (source_id, category_id) DO NOTHING`,
-        [sourceId, category.category_id, category.confidence],
+        `INSERT INTO source_categories (
+           source_id, category_id, assignment_source, confidence, approved, assigned_by
+         ) VALUES ($1,$2,'ai',$3,true,$4)`,
+        [
+          sourceId,
+          chosen.id,
+          aiChoice?.confidence ?? localChoice.confidence,
+          job.created_by ?? null,
+        ],
       );
-      assigned += 1;
+    } else {
+      warnings.push('Canonical knowledge categories are missing; category assignment was skipped.');
     }
 
     const tagIds: string[] = [];
@@ -235,36 +246,19 @@ const classify: Handler = async (job, ctx) => {
       );
     }
 
-    // Proposals are recorded as review requests, never acted on.
-    for (const proposal of classification.proposed_new_categories) {
-      await sql.query(
-        `INSERT INTO annotations (organization_id, source_id, user_id, annotation_type, body, created_via)
-         VALUES ($1,$2,$3,'review_request',$4,'worker')`,
-        [
-          ctx.organizationId,
-          sourceId,
-          job.created_by ?? (await firstAdminId(sql)),
-          `The classifier suggested a new category "${proposal.name}". Rationale: ${proposal.rationale}. Closest existing: ${proposal.similar_existing.join(', ') || 'none identified'}. No category was created.`,
-        ],
-      );
-      warnings.push(
-        `A new category "${proposal.name}" was proposed and recorded for review. It was not created.`,
-      );
-    }
-
     await recordAudit(sql, ctx, {
       action: 'source.ai_classified',
       resourceType: 'source',
       resourceId: sourceId,
       newState: {
-        categories_assigned: assigned,
+        category: chosen?.name ?? null,
+        category_slug: chosen?.slug ?? null,
         tags_assigned: tagIds.length,
-        proposals: classification.proposed_new_categories.length,
       },
     });
 
     return {
-      output: { categories_assigned: assigned, tags_assigned: tagIds.length },
+      output: { category: chosen?.name ?? null, tags_assigned: tagIds.length },
       warnings,
     };
   });
