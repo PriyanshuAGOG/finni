@@ -1,7 +1,7 @@
 /**
  * Seeds the fixed top-level category taxonomy every organization should
- * have: Foundation of Health, Movement, What to Eat, What to Avoid,
- * Stress, Recovery and Tracking, Miscellaneous. Idempotent -- skips a
+ * have: Movement, Exercise and Yoga; Lifestyle; Food; Miscellaneous.
+ * Idempotent -- skips a
  * name that already exists (case-insensitively) as a top-level category
  * in that organization, so it is safe to re-run.
  *
@@ -16,11 +16,9 @@ import { normalizeTaxonomyName } from '../src/lib/text';
 import { reportError } from './lib/report-error';
 
 const TOP_LEVEL_CATEGORIES = [
-  'Foundation of Health',
-  'Movement',
-  'What to Eat',
-  'What to Avoid',
-  'Stress, Recovery and Tracking',
+  'Movement, Exercise and Yoga',
+  'Lifestyle',
+  'Food',
   'Miscellaneous',
 ];
 
