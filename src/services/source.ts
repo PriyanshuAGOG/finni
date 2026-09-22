@@ -550,12 +550,10 @@ export async function getSource(
   });
 }
 
-/** Where a record sits: approved evidence, unreviewed, or archived. */
+/** Active library sources are immediately usable; archived records stay distinct. */
 export function provenanceOf(source: { review_status: string; status: string }): string {
   if (source.status === 'archived') return 'internal_archived';
-  return APPROVED_REVIEW_STATUSES.includes(source.review_status)
-    ? 'internal_approved'
-    : 'internal_unreviewed';
+  return 'internal_approved';
 }
 
 // ---------------------------------------------------------------------
@@ -702,6 +700,20 @@ export async function updateSourceTaxonomy(
     if (!source) throw notFound('source', sourceId);
 
     const changed: Record<string, unknown> = {};
+
+    if (input.addCategoryIds?.length || input.removeCategoryIds?.length) {
+      throw invalidInput(
+        'Knowledge categories are assigned automatically from source content and cannot be changed manually.',
+        {
+          categories: [
+            'Movement, Exercise and Yoga',
+            'Lifestyle',
+            'Food',
+            'Miscellaneous',
+          ],
+        },
+      );
+    }
 
     if (input.addCategoryIds?.length) {
       const valid = await sql.query<{ id: string }>(
