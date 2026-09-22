@@ -297,7 +297,6 @@ This operation does not modify anything.`,
   input: z.object({
     topic: z.string().min(1),
     collection_ids: z.array(z.string().uuid()).optional(),
-    approved_only: z.boolean().optional(),
     dimensions: z
       .array(z.enum(['population', 'intervention', 'outcomes', 'geography', 'study_design', 'recency']))
       .optional(),
@@ -306,7 +305,7 @@ This operation does not modify anything.`,
     findKnowledgeGaps(ctx, {
       topic: input.topic,
       collectionIds: input.collection_ids,
-      approvedOnly: input.approved_only,
+      approvedOnly: false,
       dimensions: input.dimensions,
     }),
 });
