@@ -6,6 +6,8 @@ on:
       - qa/final-platform-audit
     paths:
       - 'package.json'
+      - 'package-lock.json'
+      - 'tests/**'
       - '.github/workflows/validate-dependency-upgrades.yml'
 
 jobs:
@@ -23,18 +25,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-
-      - name: Regenerate lockfile
-        run: npm install --package-lock-only --ignore-scripts
-
-      - name: Upload regenerated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: refreshed-package-lock
-          path: package-lock.json
-          if-no-files-found: error
 
       - name: Clean install
         run: npm ci
