@@ -31,11 +31,11 @@ const OUT_DIR = join(process.cwd(), 'openapi');
  * name in docs/gpt-instructions.md (so the GPT's own instructions never
  * point at a tool it doesn't have), plus every core article/knowledge-base
  * management action -- add (URL/DOI/pasted text), fetch/query/reference
- * (search, get, list, exact passages), categorize and re-categorize an
- * existing article, file into a specific collection, edit metadata,
- * change review status -- since that end-to-end library workflow is what
- * this GPT is for. Claim creation (createClaim/addClaimEvidence) didn't
- * make the cut this round in favor of that; reviewClaim/analyzeClaimConflicts
+ * (search, get, list, exact passages), browse the fixed category taxonomy,
+ * file into a collection and edit metadata. Knowledge categorization is
+ * automatic and source review is not part of the active workflow.
+ * Claim creation (createClaim/addClaimEvidence) did not make the cut;
+ * reviewClaim/analyzeClaimConflicts
  * still work on claims created via the dashboard. Admin operations (team,
  * integrations, audit browsing) stay internalOnly regardless. Swap entries
  * here (and re-run npm run openapi:generate) to change the 30, or split
@@ -53,16 +53,13 @@ const CORE_GPT_ACTIONS = new Set([
   'ingestUrl',
   'ingestIdentifier',
   'createSource',
-  'findSimilarCategories',
-  'createCategory',
+  'listCategories',
   'listCollections',
   'createCollection',
   'addSourceToCollections',
   'updateSource',
-  'updateSourceTaxonomy',
   'reviewClaim',
   'analyzeClaimConflicts',
-  'changeSourceReviewStatus',
   'generateResearchBrief',
   'generateEvidenceBasedContent',
   'validateContentCitations',
