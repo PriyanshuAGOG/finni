@@ -23,7 +23,17 @@ async function main() {
   }
 
   for (const org of orgs) {
-    console.log(`\nOrganization: ${org.name} (${org.slug})`);
+    const orgRow = await withoutOrg((sql) =>
+      sql.one<{ created_at: string }>(`SELECT created_at FROM organizations WHERE id = $1`, [org.id]),
+    );
+    console.log(`\nOrganization: ${org.name} (${org.slug}), created ${orgRow?.created_at ?? '?'}`);
+
+    const userCount = await withOrg(org.id, (sql) =>
+      sql.one<{ total: number; earliest: string | null }>(
+        `SELECT count(*)::int AS total, min(created_at) AS earliest FROM users`,
+      ),
+    );
+    console.log(`  Users: ${userCount?.total ?? 0} (earliest created ${userCount?.earliest ?? 'n/a'})`);
 
     const counts = await withOrg(org.id, (sql) =>
       sql.one<{ total: number; active: number; archived: number; deleted: number }>(
@@ -52,6 +62,24 @@ async function main() {
         console.log(`    - [${r.status}] ${r.title}  (${r.created_at})`);
       }
     }
+
+    // audit_logs is append-only and never cleaned up by any migration, so
+    // it answers "did this org ever actually have source data" even when
+    // the sources table itself is currently empty.
+    const auditSummary = await withOrg(org.id, (sql) =>
+      sql.one<{ total: number; earliest: string | null; latest: string | null; source_created: number }>(
+        `SELECT count(*)::int AS total,
+                min(created_at) AS earliest,
+                max(created_at) AS latest,
+                count(*) FILTER (WHERE action = 'source.created')::int AS source_created
+         FROM audit_logs`,
+      ),
+    );
+    console.log(
+      `  Audit log: ${auditSummary?.total ?? 0} events total ` +
+        `(earliest ${auditSummary?.earliest ?? 'n/a'}, latest ${auditSummary?.latest ?? 'n/a'}), ` +
+        `${auditSummary?.source_created ?? 0} were 'source.created'`,
+    );
   }
 
   console.log('\nRecent server errors (last 20, any organization):');
