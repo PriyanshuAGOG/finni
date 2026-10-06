@@ -30,10 +30,16 @@ export async function GET(request: Request): Promise<Response> {
     return errorPage('invalid_request', 'client_id, redirect_uri and response_type=code are required.');
   }
 
+  // No organization context exists yet at this point in the flow (that
+  // is the whole point of /oauth/authorize), so this table's normal
+  // per-organization RLS policy would make a plain SELECT return nothing
+  // -- auth_find_oauth_client is the same SECURITY DEFINER lookup
+  // exchangeAuthorizationCode already uses for this table (see
+  // db/migrations/0005_auth_lookup_functions.sql and
+  // 0010_oauth_dynamic_registration.sql).
   const client = await withoutOrg((sql) =>
     sql.one<{ id: string; redirect_uris: string[]; allowed_scopes: string[] }>(
-      `SELECT id, redirect_uris, allowed_scopes FROM oauth_clients
-       WHERE client_id = $1 AND status = 'active'`,
+      `SELECT * FROM auth_find_oauth_client($1)`,
       [clientId],
     ),
   );
