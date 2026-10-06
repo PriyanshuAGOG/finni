@@ -21,7 +21,6 @@ tags:
   - name: knowledge
   - name: profile
   - name: research
-  - name: review
   - name: sources
   - name: taxonomy
 paths:
@@ -62,10 +61,9 @@ paths:
     post:
       operationId: searchKnowledge
       summary: Search the internal library with natural language and structured filters
-      description: Hybrid search (full-text, semantic, taxonomy, evidence-weighted) over internal sources,
-        claims, collections and briefs. Search before synthesizing. Returns passages with locators,
-        never web results. Every result states origin (approved/unreviewed/archived) -- never call
-        unreviewed approved.
+      description: Hybrid search over internal sources, claims, collections and briefs. Search before
+        synthesizing. Returns real matched passages with locators, never web results. All active
+        library sources are searchable immediately.
       tags:
         - knowledge
       x-risk-level: low
@@ -92,7 +90,7 @@ paths:
                         - library_first
                         - web_discovery
                         - evidence_review
-                  description: library_only restricts to approved internal sources by default.
+                  description: library_only restricts retrieval to internal library sources.
                 entity_types:
                   anyOf:
                     - not: {}
@@ -111,19 +109,6 @@ paths:
                     - not: {}
                     - type: object
                       properties:
-                        review_status:
-                          type: array
-                          items:
-                            type: string
-                            enum:
-                              - unreviewed
-                              - needs_review
-                              - in_review
-                              - approved
-                              - approved_with_conditions
-                              - rejected
-                              - disputed
-                              - superseded
                         source_types:
                           type: array
                           items:
@@ -210,11 +195,6 @@ paths:
                     - not: {}
                     - type: boolean
                   description: Return matching passages with locators.
-                include_unreviewed:
-                  anyOf:
-                    - not: {}
-                    - type: boolean
-                  description: Include sources that have not been approved. They are labelled as such.
                 include_archived:
                   anyOf:
                     - not: {}
@@ -232,9 +212,6 @@ paths:
               entity_types:
                 - sources
                 - claims
-              filters:
-                review_status:
-                  - approved
               limit: 20
               include_passages: true
       responses:
@@ -261,9 +238,8 @@ paths:
     post:
       operationId: synthesizeKnowledge
       summary: Generate a cited answer from internal sources only
-      description: Produces a cited answer built only from internal sources; citations not matching a real
-        retrieved passage are stripped. Search first unless you already hold source ids. Defaults to
-        approved sources only; unreviewed material must be labeled as such if included.
+      description: Produces a cited answer built only from active internal sources; citations not matching
+        a real retrieved passage are stripped. Search first unless you already hold source ids.
       tags:
         - knowledge
       x-risk-level: low
@@ -303,11 +279,6 @@ paths:
                       items:
                         type: string
                         format: uuid
-                approved_only:
-                  anyOf:
-                    - not: {}
-                    - type: boolean
-                  description: Defaults to true.
                 include_contradictions:
                   anyOf:
                     - not: {}
@@ -398,10 +369,6 @@ paths:
                         - contradicting
                         - qualifying
                         - all
-                approved_only:
-                  anyOf:
-                    - not: {}
-                    - type: boolean
                 collection_ids:
                   anyOf:
                     - not: {}
@@ -496,8 +463,9 @@ paths:
     get:
       operationId: listSources
       summary: List and filter library sources
-      description: Filtered, paginated browse of sources by review/processing state. For relevance-ranked
-        topic search use searchKnowledge instead. Does not modify anything.
+      description: Browse and filter library sources by query, category, type, tag, collection or
+        processing state. For relevance-ranked topic search use searchKnowledge. Does not modify
+        anything.
       tags:
         - sources
       x-risk-level: low
@@ -513,22 +481,6 @@ paths:
             anyOf:
               - not: {}
               - type: string
-        - name: review_status
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - not: {}
-              - allOf:
-                  - anyOf:
-                      - type: string
-                      - type: array
-                        items:
-                          type: string
-                  - type: array
-                    items:
-                      type: string
-                      minLength: 1
         - name: processing_status
           in: query
           required: false
@@ -621,14 +573,6 @@ paths:
               - not: {}
               - type: string
                 format: uuid
-        - name: assigned_reviewer_id
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - not: {}
-              - type: string
-                format: uuid
         - name: archived
           in: query
           required: false
@@ -704,9 +648,9 @@ paths:
     post:
       operationId: createSource
       summary: Create a source from supplied text rather than a URL
-      description: Creates a source from text you already have -- pasted article, manual note, or an
-        article you read yourself after ingestUrl failed (paywalled/bot-blocked). Pass summary and
-        categories. Writes; approved immediately.
+      description: Creates a source from supplied text, including pasted articles or notes. The source is
+        available immediately and auto-categorized into one of four fixed categories. Pass summary
+        when available. Writes.
       tags:
         - sources
         - ingestion
@@ -758,13 +702,6 @@ paths:
                     - not: {}
                     - type: string
                       nullable: true
-                categories:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
                 tags:
                   anyOf:
                     - not: {}
@@ -818,9 +755,9 @@ paths:
     get:
       operationId: getSource
       summary: Get one source with its metadata, taxonomy and optional detail
-      description: "Full record for one source: metadata, review/processing state, and optionally study
-        metadata, claims, annotations, versions, activity. Use searchSourcePassages for exact
-        passages rather than full text. Does not modify anything."
+      description: Full record for one source with metadata, category, processing state and optional study
+        metadata, claims, annotations, versions or activity. Use searchSourcePassages for exact
+        passages. Does not modify anything.
       tags:
         - sources
       x-risk-level: low
@@ -900,10 +837,9 @@ paths:
     patch:
       operationId: updateSource
       summary: Correct editable metadata on a source
-      description: Updates editable metadata (title, authors, publisher, dates, abstract, summaries,
-        findings, limitations) on an existing source. Does not change review status, taxonomy or
-        collections -- use those dedicated operations. Locked fields need source.lock_fields.
-        Writes.
+      description: Updates editable source metadata such as title, authors, publisher, dates, abstract,
+        summaries, findings and limitations. Category assignment remains automatic. Locked fields
+        need source.lock_fields. Writes.
       tags:
         - sources
       x-risk-level: medium
@@ -1141,10 +1077,9 @@ paths:
     post:
       operationId: ingestUrl
       summary: Save one URL to the library and queue enrichment
-      description: Fetches a URL, extracts content, checks duplicates, creates a source, queues
-        enrichment. Approved immediately. Pass summary and category_ids -- always categorize. On
-        DUPLICATE_SOURCE, offer options. On fetch failure (paywalled/bot-blocked), read it yourself
-        and use createSource. Writes.
+      description: Fetches a URL, checks duplicates, saves it immediately, auto-categorizes into one of
+        four fixed categories, and queues enrichment. Pass summary when available. On duplicate,
+        offer the returned options. Writes.
       tags:
         - sources
         - ingestion
@@ -1170,13 +1105,6 @@ paths:
                       items:
                         type: string
                         format: uuid
-                category_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
                 tags:
                   anyOf:
                     - not: {}
@@ -1187,12 +1115,6 @@ paths:
                   anyOf:
                     - not: {}
                     - type: string
-                      nullable: true
-                assign_reviewer_id:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      format: uuid
                       nullable: true
                 priority:
                   anyOf:
@@ -1278,8 +1200,8 @@ paths:
     post:
       operationId: ingestIdentifier
       summary: Save a paper by DOI or PubMed identifier
-      description: Resolves a DOI or PMID to its bibliographic record and saves it as a source. Returns
-        the existing record if already in the library. Writes; approved immediately.
+      description: Resolves a DOI or PMID and saves it to the library. Returns the existing record if
+        already present. The saved source is available immediately and auto-categorized. Writes.
       tags:
         - sources
         - ingestion
@@ -1309,13 +1231,6 @@ paths:
                       items:
                         type: string
                         format: uuid
-                category_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
                 tags:
                   anyOf:
                     - not: {}
@@ -1336,83 +1251,6 @@ paths:
           description: A client-generated key that makes a retried write safe to repeat.
           schema:
             type: string
-      responses:
-        "200":
-          description: Success.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties: {}
-                    additionalProperties: true
-                  meta:
-                    $ref: "#/components/schemas/ResponseMeta"
-        default:
-          description: Error.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /sources/{sourceId}/taxonomy:
-    post:
-      operationId: updateSourceTaxonomy
-      summary: Add or remove categories and tags on a source
-      description: Adds or removes categories and tags on a source. Categories must already exist -- use
-        findSimilarCategories/createCategory first if new. Tags are created on demand. Does not
-        change review status or collection membership. Writes.
-      tags:
-        - sources
-        - taxonomy
-      x-risk-level: medium
-      x-may-require-confirmation: false
-      x-required-scopes:
-        - source.write
-        - taxonomy.write
-      parameters:
-        - name: sourceId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                add_category_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
-                remove_category_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
-                add_tags:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                remove_tag_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
-              required: []
       responses:
         "200":
           description: Success.
@@ -1481,92 +1319,6 @@ paths:
                       nullable: true
               required:
                 - collection_ids
-      responses:
-        "200":
-          description: Success.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties: {}
-                    additionalProperties: true
-                  meta:
-                    $ref: "#/components/schemas/ResponseMeta"
-        default:
-          description: Error.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /sources/{sourceId}/review-status:
-    post:
-      operationId: changeSourceReviewStatus
-      summary: Approve, reject or otherwise change a source review status
-      description: Changes a source review status (approved/rejected/disputed/etc). Only call when the
-        permitted user has explicitly decided -- approving makes it organizational evidence, never
-        on your own initiative. Reason required to reject; conditions required for
-        approved_with_conditions. Writes.
-      tags:
-        - sources
-        - review
-      x-risk-level: medium
-      x-may-require-confirmation: true
-      x-required-scopes:
-        - source.review
-      parameters:
-        - name: sourceId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                confirmation_id:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      format: uuid
-                      nullable: true
-                  description: Confirmation id from confirmAction. Required when the operation returns
-                    CONFIRMATION_REQUIRED.
-                status:
-                  type: string
-                  enum:
-                    - unreviewed
-                    - needs_review
-                    - in_review
-                    - approved
-                    - approved_with_conditions
-                    - rejected
-                    - disputed
-                    - superseded
-                reason:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                  description: Required when rejecting.
-                conditions:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                  description: Required for approved_with_conditions.
-                expected_version:
-                  anyOf:
-                    - not: {}
-                    - type: integer
-              required:
-                - status
       responses:
         "200":
           description: Success.
@@ -1765,13 +1517,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /categories/similar:
+  /categories:
     get:
-      operationId: findSimilarCategories
-      summary: Find categories that would overlap with a proposed name
-      description: Checks whether a proposed category name/parent duplicates an existing one. Call before
-        createCategory. Similarity >=0.9 generally means use the existing category instead. Does not
-        modify anything.
+      operationId: listCategories
+      summary: List the category taxonomy
+      description: Returns categories, optionally as a nested tree, with usage counts. Use this to browse
+        or check the existing taxonomy before creating a category. This operation does not modify
+        anything.
       tags:
         - taxonomy
       x-risk-level: low
@@ -1779,13 +1531,14 @@ paths:
       x-required-scopes:
         - taxonomy.read
       parameters:
-        - name: name
+        - name: query
           in: query
-          required: true
+          required: false
           schema:
-            type: string
-            minLength: 1
-        - name: parent_category_id
+            anyOf:
+              - not: {}
+              - type: string
+        - name: parent_id
           in: query
           required: false
           schema:
@@ -1794,103 +1547,27 @@ paths:
               - type: string
                 format: uuid
                 nullable: true
-        - name: limit
+        - name: include_archived
           in: query
           required: false
           schema:
             anyOf:
               - not: {}
-              - type: integer
-                minimum: 1
-                maximum: 25
-      responses:
-        "200":
-          description: Success.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties: {}
-                    additionalProperties: true
-                  meta:
-                    $ref: "#/components/schemas/ResponseMeta"
-        default:
-          description: Error.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /categories:
-    post:
-      operationId: createCategory
-      summary: Create a new taxonomy category
-      description: "Creates a taxonomy category. Always call findSimilarCategories first -- if a likely
-        duplicate exists (>=0.9), recommend it instead unless the user explicitly confirms a
-        distinct category is needed (allow_duplicate: true). Writes."
-      tags:
-        - taxonomy
-      x-risk-level: medium
-      x-may-require-confirmation: false
-      x-required-scopes:
-        - taxonomy.write
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                  minLength: 1
-                description:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                parent_category_id:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      format: uuid
-                      nullable: true
-                synonyms:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                color:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                icon:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                ai_usage_guidance:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      nullable: true
-                allow_duplicate:
-                  anyOf:
-                    - not: {}
-                    - type: boolean
-              required:
-                - name
-      parameters:
-        - name: Idempotency-Key
-          in: header
+              - type: boolean
+        - name: include_usage_counts
+          in: query
           required: false
-          description: A client-generated key that makes a retried write safe to repeat.
           schema:
-            type: string
+            anyOf:
+              - not: {}
+              - type: boolean
+        - name: tree
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - not: {}
+              - type: boolean
       responses:
         "200":
           description: Success.

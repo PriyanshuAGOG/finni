@@ -90,9 +90,8 @@ paths:
         previewExternalResearch or startResearchJob for external discovery.
 
 
-        Every result states its origin (internal_approved, internal_unreviewed or
-        internal_archived). Never describe an unreviewed result as approved organizational evidence.
-        This operation does not modify anything.
+        Every active library source is searchable immediately. Archived records remain explicitly
+        identified. This operation does not modify anything.
       tags:
         - knowledge
       x-risk-level: low
@@ -119,7 +118,7 @@ paths:
                         - library_first
                         - web_discovery
                         - evidence_review
-                  description: library_only restricts to approved internal sources by default.
+                  description: library_only restricts retrieval to internal library sources.
                 entity_types:
                   anyOf:
                     - not: {}
@@ -138,19 +137,6 @@ paths:
                     - not: {}
                     - type: object
                       properties:
-                        review_status:
-                          type: array
-                          items:
-                            type: string
-                            enum:
-                              - unreviewed
-                              - needs_review
-                              - in_review
-                              - approved
-                              - approved_with_conditions
-                              - rejected
-                              - disputed
-                              - superseded
                         source_types:
                           type: array
                           items:
@@ -237,11 +223,6 @@ paths:
                     - not: {}
                     - type: boolean
                   description: Return matching passages with locators.
-                include_unreviewed:
-                  anyOf:
-                    - not: {}
-                    - type: boolean
-                  description: Include sources that have not been approved. They are labelled as such.
                 include_archived:
                   anyOf:
                     - not: {}
@@ -259,9 +240,6 @@ paths:
               entity_types:
                 - sources
                 - claims
-              filters:
-                review_status:
-                  - approved
               limit: 20
               include_passages: true
       responses:
@@ -303,9 +281,8 @@ paths:
         all invalid are dropped rather than shown uncited.
 
 
-        Defaults to approved sources only. Setting approved_only to false includes unreviewed
-        material, which must then be described as unreviewed in your answer. This operation does not
-        use the web and does not modify anything.
+        All active library sources are eligible. This operation does not use the web and does not
+        modify anything.
       tags:
         - knowledge
       x-risk-level: low
@@ -345,11 +322,6 @@ paths:
                       items:
                         type: string
                         format: uuid
-                approved_only:
-                  anyOf:
-                    - not: {}
-                    - type: boolean
-                  description: Defaults to true.
                 include_contradictions:
                   anyOf:
                     - not: {}
@@ -449,10 +421,6 @@ paths:
                         - contradicting
                         - qualifying
                         - all
-                approved_only:
-                  anyOf:
-                    - not: {}
-                    - type: boolean
                 collection_ids:
                   anyOf:
                     - not: {}
@@ -591,10 +559,6 @@ paths:
                       items:
                         type: string
                         format: uuid
-                approved_only:
-                  anyOf:
-                    - not: {}
-                    - type: boolean
                 dimensions:
                   anyOf:
                     - not: {}
@@ -635,12 +599,12 @@ paths:
       operationId: listSources
       summary: List and filter library sources
       description: >-
-        Returns a filtered, paginated list of sources with their review and processing state.
+        Returns a filtered, paginated list of library sources with category and processing
+        information.
 
 
-        Use this for browsing and filtering -- "show sources awaiting review", "what did I add this
-        week", "list everything in this collection". For relevance-ranked topic search use
-        searchKnowledge instead; this operation does not rank by relevance to a question.
+        Use this for browsing and filtering by query, category, type, tag or collection. For
+        relevance-ranked topic search use searchKnowledge instead.
 
 
         This operation does not modify anything.
@@ -659,22 +623,6 @@ paths:
             anyOf:
               - not: {}
               - type: string
-        - name: review_status
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - not: {}
-              - allOf:
-                  - anyOf:
-                      - type: string
-                      - type: array
-                        items:
-                          type: string
-                  - type: array
-                    items:
-                      type: string
-                      minLength: 1
         - name: processing_status
           in: query
           required: false
@@ -767,14 +715,6 @@ paths:
               - not: {}
               - type: string
                 format: uuid
-        - name: assigned_reviewer_id
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - not: {}
-              - type: string
-                format: uuid
         - name: archived
           in: query
           required: false
@@ -860,12 +800,12 @@ paths:
         WSJ), or when the user has supplied the text.
 
 
-        Pass `summary` with a concise summary and `categories` with the best-fitting category id
-        (create one with createCategory if none fits) -- for a URL, use ingestUrl instead: it
-        captures the original and its metadata.
+        Pass `summary` when available. The server automatically assigns exactly one of the four
+        fixed knowledge categories. For a fetchable URL, prefer ingestUrl because it captures the
+        original and its metadata.
 
 
-        This operation writes. The created source is approved immediately.
+        This operation writes. The created source is available immediately.
       tags:
         - sources
         - ingestion
@@ -917,13 +857,6 @@ paths:
                     - not: {}
                     - type: string
                       nullable: true
-                categories:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
                 tags:
                   anyOf:
                     - not: {}
@@ -978,8 +911,8 @@ paths:
       operationId: getSource
       summary: Get one source with its metadata, taxonomy and optional detail
       description: >-
-        Returns the full record for one source: metadata, summaries, categories, tags, collections,
-        review state and processing state.
+        Returns the full record for one source: metadata, summaries, categories, tags, collections
+        and processing state.
 
 
         Use this when a specific source has been identified and you need its details, or before
@@ -1081,9 +1014,9 @@ paths:
         Use this only when the user explicitly asks to correct or change source metadata.
 
 
-        This action does NOT change review status (use changeSourceReviewStatus), categories or tags
-        (use updateSourceTaxonomy), or collection membership (use addSourceToCollections). Fields a
-        reviewer has locked cannot be changed without the source.lock_fields permission.
+        Knowledge category assignment is automatic. Use updateSourceTaxonomy only for tags, and
+        addSourceToCollections for collection membership. Locked fields require source.lock_fields
+        permission.
 
 
         Pass expected_version to detect a concurrent edit; a mismatch returns VERSION_CONFLICT
@@ -1408,15 +1341,13 @@ paths:
         user merely mentioned.
 
 
-        The newly created source is approved immediately -- this deployment has no review queue.
-        Extraction confidence and any extraction warnings still travel with the record, so mention
-        them if they're present.
+        The newly created source is available immediately. The server automatically assigns exactly
+        one category from Movement, Exercise and Yoga; Lifestyle; Food; or Miscellaneous. Extraction
+        warnings still travel with the record, so mention material warnings if present.
 
 
-        Pass `summary` with a concise summary you write from the extracted content, so it's stored
-        immediately rather than waiting for the async summarize job. Always supply `category_ids` --
-        find the best-fitting category (create one with createCategory if none fits) so nothing is
-        left uncategorized.
+        Pass `summary` when you already have one so useful context can appear immediately while
+        background enrichment continues.
 
 
         If a duplicate exists this returns DUPLICATE_SOURCE with the existing record; tell the user
@@ -1455,13 +1386,6 @@ paths:
                       items:
                         type: string
                         format: uuid
-                category_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
                 tags:
                   anyOf:
                     - not: {}
@@ -1472,12 +1396,6 @@ paths:
                   anyOf:
                     - not: {}
                     - type: string
-                      nullable: true
-                assign_reviewer_id:
-                  anyOf:
-                    - not: {}
-                    - type: string
-                      format: uuid
                       nullable: true
                 priority:
                   anyOf:
@@ -1564,7 +1482,8 @@ paths:
       operationId: ingestUrlsBatch
       summary: Save several URLs with shared metadata
       description: >-
-        Saves multiple URLs in one call, applying the same collections, categories and tags to each.
+        Saves multiple URLs in one call, applying the same collections and tags to each. Every
+        created source is categorized automatically.
 
 
         Use this when the user asks to save several links at once or has selected several research
@@ -1573,7 +1492,7 @@ paths:
 
 
         Defaults to returning the existing record for duplicates rather than failing the whole
-        batch. All created sources are approved immediately.
+        batch. Created sources are available immediately.
 
 
         This operation writes. Batch size is capped by configuration.
@@ -1599,13 +1518,6 @@ paths:
                   minItems: 1
                   maxItems: 50
                 collection_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
-                category_ids:
                   anyOf:
                     - not: {}
                     - type: array
@@ -1675,7 +1587,8 @@ paths:
         in the library the existing record is returned and nothing new is created.
 
 
-        This operation writes. The created source is approved immediately.
+        This operation writes. The created source is available immediately and categorized
+        automatically.
       tags:
         - sources
         - ingestion
@@ -1699,13 +1612,6 @@ paths:
                     - not: {}
                     - type: string
                 collection_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
-                category_ids:
                   anyOf:
                     - not: {}
                     - type: array
@@ -1755,17 +1661,13 @@ paths:
   /sources/{sourceId}/taxonomy:
     post:
       operationId: updateSourceTaxonomy
-      summary: Add or remove categories and tags on a source
+      summary: Add or remove tags on a source
       description: >-
-        Adds or removes category assignments and tags for one source.
+        Adds or removes tags for one source. Knowledge categories are assigned automatically and
+        cannot be changed through this operation.
 
 
-        Use this when the user asks to file a source under a category or to tag it. Categories must
-        already exist -- use findSimilarCategories and createCategory first if the category is new.
-        Tags are created on demand.
-
-
-        This action does not change review status or collection membership.
+        This action does not change collection membership.
 
 
         This operation writes.
@@ -1791,20 +1693,6 @@ paths:
             schema:
               type: object
               properties:
-                add_category_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
-                remove_category_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
                 add_tags:
                   anyOf:
                     - not: {}
@@ -7580,7 +7468,8 @@ paths:
         creating a copy.
 
 
-        This operation writes. The created source is approved immediately.
+        This operation writes. The created source is available immediately and is categorized
+        automatically into one of the four fixed knowledge categories.
       tags:
         - sources
         - ingestion
@@ -7600,13 +7489,6 @@ paths:
                     - not: {}
                     - {}
                 collection_ids:
-                  anyOf:
-                    - not: {}
-                    - type: array
-                      items:
-                        type: string
-                        format: uuid
-                category_ids:
                   anyOf:
                     - not: {}
                     - type: array

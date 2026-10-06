@@ -37,6 +37,18 @@ describe('source creation', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('normalizes an unrecognized source_type instead of failing the write', async () => {
+    const result = await createManualSource(org.adminCtx, {
+      title: 'A source saved with a free-form source type',
+      text: 'A free-text guess at the source type must never reach the database enum unnormalized.',
+      sourceType: 'article',
+    });
+    expect(result.created).toBe(true);
+
+    const source = await getSource(org.adminCtx, result.source_id, {});
+    expect(source.source_type).toBe('web_article');
+  });
+
   it('stores a caller-supplied summary immediately and skips the async summarize job', async () => {
     const result = await createManualSource(org.adminCtx, {
       title: 'A source with a caller-supplied summary',

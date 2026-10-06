@@ -18,6 +18,7 @@
     "db:list-api-clients": "tsx scripts/list-api-clients.ts",
     "db:seed-categories": "tsx scripts/seed-categories.ts",
     "db:reclassify-sources": "tsx scripts/reclassify-sources.ts",
+    "db:diagnose-sources": "tsx scripts/diagnose-sources.ts",
     "docs:generate": "tsx scripts/generate-docs.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

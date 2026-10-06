@@ -24,6 +24,7 @@ on:
           - list-users
           - list-api-clients
           - seed-categories
+          - diagnose-sources
 
 jobs:
   run:
@@ -96,3 +97,9 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ORG_SLUG: ${{ secrets.ORG_SLUG }}
+
+      - name: Diagnose source counts and recent server errors (read-only)
+        if: inputs.task == 'diagnose-sources'
+        run: npm run db:diagnose-sources
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
