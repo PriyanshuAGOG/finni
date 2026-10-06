@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -7,6 +9,37 @@ import { CORE_GPT_ACTIONS } from '../domain/core-gpt-actions';
 import { isApiError } from '../lib/errors';
 import { logError } from '../services/errors';
 import type { ActorContext } from '../lib/context';
+
+/**
+ * The legacy Custom GPT Actions flow required a human to copy
+ * docs/gpt-instructions.md into the GPT editor's Instructions field by
+ * hand. MCP's initialize response carries an `instructions` string that
+ * the host is expected to surface to the model automatically, so this
+ * reads the same file instead -- the assistant gets the real operating
+ * instructions on first connect, with no manual paste step and nothing
+ * that can drift out of sync with what's committed in the repo.
+ */
+let cachedInstructions: string | undefined;
+
+function loadInstructions(): string {
+  if (cachedInstructions) return cachedInstructions;
+
+  try {
+    const raw = readFileSync(join(process.cwd(), 'docs', 'gpt-instructions.md'), 'utf8');
+    const start = raw.indexOf('## Instructions');
+    const end = raw.indexOf('## Conversation starters');
+    const body = end > start ? raw.slice(start, end) : raw.slice(start);
+    cachedInstructions = body.replace(/\n-+\s*$/, '').trim();
+  } catch {
+    // docs/gpt-instructions.md not bundled into this deployment for some
+    // reason -- fall back to a short description rather than failing
+    // the whole MCP connection over missing prose.
+    cachedInstructions =
+      'An internal research knowledge base for Nirog Bhoomi. Search, save, categorize and cite ' +
+      'sources; synthesize evidence; manage claims, collections and research briefs.';
+  }
+  return cachedInstructions;
+}
 
 /**
  * The same curated subset the legacy OpenAPI Actions schema exposes
@@ -56,9 +89,7 @@ export function createMcpServer(ctx: ActorContext, request: Request, requestId: 
     { name: 'nirog-bhoomi-research-os', version: '1.0.0' },
     {
       capabilities: { tools: {} },
-      instructions:
-        'An internal research knowledge base for Nirog Bhoomi. Search, save, categorize and cite ' +
-        'sources; synthesize evidence; manage claims, collections and research briefs.',
+      instructions: loadInstructions(),
     },
   );
 
