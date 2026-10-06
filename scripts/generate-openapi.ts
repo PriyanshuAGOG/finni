@@ -19,57 +19,11 @@ import YAML from 'yaml';
 import { registerOperations } from '../src/api/operations';
 import { allOperations, type Operation } from '../src/api/registry';
 import { ERROR_CODES } from '../src/lib/errors';
+import { CORE_GPT_ACTIONS } from '../src/domain/core-gpt-actions';
 
 registerOperations();
 
 const OUT_DIR = join(process.cwd(), 'openapi');
-
-/**
- * ChatGPT's Custom GPT Actions editor caps a single GPT at 30 operations
- * -- far fewer than the full registry. This is the curated subset that
- * ships in openapi/gpt-actions.yaml: every operationId referenced by
- * name in docs/gpt-instructions.md (so the GPT's own instructions never
- * point at a tool it doesn't have), plus every core article/knowledge-base
- * management action -- add (URL/DOI/pasted text), fetch/query/reference
- * (search, get, list, exact passages), browse the fixed category taxonomy,
- * file into a collection and edit metadata. Knowledge categorization is
- * automatic and source review is not part of the active workflow.
- * Claim creation (createClaim/addClaimEvidence) did not make the cut;
- * reviewClaim/analyzeClaimConflicts
- * still work on claims created via the dashboard. Admin operations (team,
- * integrations, audit browsing) stay internalOnly regardless. Swap entries
- * here (and re-run npm run openapi:generate) to change the 30, or split
- * into a second GPT for more coverage -- see docs/gpt-setup-guide.md.
- */
-const CORE_GPT_ACTIONS = new Set([
-  'getCurrentUser',
-  'searchKnowledge',
-  'synthesizeKnowledge',
-  'findEvidence',
-  'compareSources',
-  'searchSourcePassages',
-  'getSource',
-  'listSources',
-  'ingestUrl',
-  'ingestIdentifier',
-  'createSource',
-  'listCategories',
-  'listCollections',
-  'createCollection',
-  'addSourceToCollections',
-  'updateSource',
-  'reviewClaim',
-  'analyzeClaimConflicts',
-  'generateResearchBrief',
-  'generateEvidenceBasedContent',
-  'validateContentCitations',
-  'previewExternalResearch',
-  'startResearchJob',
-  'selectResearchCandidates',
-  'requestActionConfirmation',
-  'confirmAction',
-  'getMyActionHistory',
-]);
 
 const SERVERS = [
   { url: 'https://research.nirogbhoomi.com/api/v1', description: 'Production' },

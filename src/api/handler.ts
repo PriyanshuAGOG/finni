@@ -64,98 +64,111 @@ export async function handleApiRequest(request: Request): Promise<Response> {
     const { operation, params } = match;
     operationId = operation.operationId;
 
-    // ---- authenticate ------------------------------------------------
-    const identity = await authenticate(request);
-    if (!identity) {
+    const ctx = await authenticateRequest(request, requestId);
+    if (!ctx) {
       throw new ApiError('UNAUTHENTICATED', 'Authentication is required for this operation.', {
         suggestedAction:
           'Connect or reconnect your Nirog Bhoomi Research OS account, or supply a valid API credential.',
       });
     }
-
-    const ctx = contextFromIdentity(identity, {
-      sourceInterface: detectInterface(request, identity),
-      requestId,
-      ipAddress: clientIp(request),
-      userAgent: request.headers.get('user-agent') ?? undefined,
-    });
     ctxForLogging = ctx;
 
-    // ---- authorize ---------------------------------------------------
-    // Checked here as well as in the service: two independent gates mean
-    // a service refactor cannot silently open an endpoint.
-    if (operation.permission) requirePermission(ctx, operation.permission);
-
-    if (ctx.scopes !== null && operation.scopes.length > 0) {
-      const hasScope = operation.scopes.some((scope) => ctx.scopes!.has(scope));
-      if (!hasScope) {
-        throw new ApiError(
-          'FORBIDDEN',
-          `This connection lacks the scope required for ${operation.operationId}.`,
-          {
-            details: { required_scopes: operation.scopes, operation: operation.operationId },
-            suggestedAction: 'Reconnect the integration and approve the required scope.',
-          },
-        );
-      }
-    }
-
-    // ---- rate limit --------------------------------------------------
-    const rateLimit = await enforceRateLimit(ctx, operation);
-    Object.assign(baseHeaders, rateLimit.headers);
-
-    // ---- parse input -------------------------------------------------
     const rawInput = await readInput(request, params, url);
-    const parsed = operation.input.safeParse(rawInput);
-    if (!parsed.success) {
-      throw new ApiError('VALIDATION_FAILED', 'One or more request fields are invalid.', {
-        details: {
-          fields: Object.fromEntries(
-            parsed.error.issues.map((issue) => [
-              issue.path.join('.') || '(root)',
-              issue.message,
-            ]),
-          ),
-        },
-        suggestedAction: 'Correct the listed fields and retry.',
-      });
-    }
-
-    // ---- idempotency -------------------------------------------------
-    const idempotencyKey = request.headers.get('idempotency-key');
-    const requestHash = hashPayload({ operationId: operation.operationId, input: parsed.data });
-
-    if (idempotencyKey && operation.method !== 'GET') {
-      const replay = await checkIdempotency(ctx, operation, idempotencyKey, requestHash);
-      if (replay) {
-        return jsonResponse(replay.body, replay.status, {
-          ...baseHeaders,
-          'idempotency-replayed': 'true',
-        });
-      }
-    }
-
-    // ---- execute -----------------------------------------------------
-    const result = await operation.handler(parsed.data, { ctx, params, request });
-
-    const body = {
-      data: result,
-      meta: {
-        request_id: requestId,
-        operation: operation.operationId,
-        duration_ms: Date.now() - started,
-        ...extractMeta(result),
-      } satisfies ApiResponseMeta,
-    };
-
-    if (idempotencyKey && operation.method !== 'GET') {
-      await storeIdempotency(ctx, idempotencyKey, 200, body);
-    }
-
-    return jsonResponse(body, 200, baseHeaders);
+    const { status, body, headers } = await runOperation(operation, rawInput, ctx, {
+      requestId,
+      started,
+      extraParams: params,
+      request,
+    });
+    Object.assign(baseHeaders, headers);
+    return jsonResponse(body, status, baseHeaders);
   } catch (err) {
     return errorResponse(err, requestId, baseHeaders, request, ctxForLogging, operationId);
   }
+}
+
+/**
+ * Everything after "the operation and the actor are both known": permission
+ * and scope checks, rate limiting, input validation, idempotency, and
+ * execution. Shared by the REST handler above and the MCP server
+ * (src/mcp), so neither surface can authorize or validate differently for
+ * the same operation.
+ */
+export async function runOperation(
+  operation: Operation,
+  rawInput: Record<string, unknown>,
+  ctx: ActorContext,
+  meta: { requestId: string; started: number; extraParams?: Record<string, string>; request: Request },
+): Promise<{ status: number; body: unknown; headers: Record<string, string> }> {
+  const headers: Record<string, string> = {};
+  const params = meta.extraParams ?? {};
+
+  // ---- authorize ---------------------------------------------------
+  // Checked here as well as in the service: two independent gates mean
+  // a service refactor cannot silently open an endpoint.
+  if (operation.permission) requirePermission(ctx, operation.permission);
+
+  if (ctx.scopes !== null && operation.scopes.length > 0) {
+    const hasScope = operation.scopes.some((scope) => ctx.scopes!.has(scope));
+    if (!hasScope) {
+      throw new ApiError(
+        'FORBIDDEN',
+        `This connection lacks the scope required for ${operation.operationId}.`,
+        {
+          details: { required_scopes: operation.scopes, operation: operation.operationId },
+          suggestedAction: 'Reconnect the integration and approve the required scope.',
+        },
+      );
+    }
+  }
+
+  // ---- rate limit --------------------------------------------------
+  const rateLimit = await enforceRateLimit(ctx, operation);
+  Object.assign(headers, rateLimit.headers);
+
+  // ---- parse input -------------------------------------------------
+  const parsed = operation.input.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ApiError('VALIDATION_FAILED', 'One or more request fields are invalid.', {
+      details: {
+        fields: Object.fromEntries(
+          parsed.error.issues.map((issue) => [issue.path.join('.') || '(root)', issue.message]),
+        ),
+      },
+      suggestedAction: 'Correct the listed fields and retry.',
+    });
+  }
+
+  // ---- idempotency -------------------------------------------------
+  const idempotencyKey = meta.request.headers.get('idempotency-key');
+  const requestHash = hashPayload({ operationId: operation.operationId, input: parsed.data });
+
+  if (idempotencyKey && operation.method !== 'GET') {
+    const replay = await checkIdempotency(ctx, operation, idempotencyKey, requestHash);
+    if (replay) {
+      headers['idempotency-replayed'] = 'true';
+      return { status: replay.status, body: replay.body, headers };
+    }
+  }
+
+  // ---- execute -----------------------------------------------------
+  const result = await operation.handler(parsed.data, { ctx, params, request: meta.request });
+
+  const body = {
+    data: result,
+    meta: {
+      request_id: meta.requestId,
+      operation: operation.operationId,
+      duration_ms: Date.now() - meta.started,
+      ...extractMeta(result),
+    } satisfies ApiResponseMeta,
+  };
+
+  if (idempotencyKey && operation.method !== 'GET') {
+    await storeIdempotency(ctx, idempotencyKey, 200, body);
+  }
+
+  return { status: 200, body, headers };
 }
 
 /**
@@ -248,6 +261,26 @@ async function errorResponse(
 // ---------------------------------------------------------------------
 // Authentication
 // ---------------------------------------------------------------------
+
+/**
+ * Resolves the acting identity and builds its ActorContext in one step.
+ * Shared by the REST handler and the MCP server -- both accept exactly
+ * the same credentials (session cookie, nbat_ access token, nbgpt_ API
+ * key) the same way.
+ */
+export async function authenticateRequest(
+  request: Request,
+  requestId: string,
+): Promise<ActorContext | null> {
+  const identity = await authenticate(request);
+  if (!identity) return null;
+  return contextFromIdentity(identity, {
+    sourceInterface: detectInterface(request, identity),
+    requestId,
+    ipAddress: clientIp(request),
+    userAgent: request.headers.get('user-agent') ?? undefined,
+  });
+}
 
 async function authenticate(request: Request): Promise<AuthenticatedIdentity | null> {
   const authorization = request.headers.get('authorization');

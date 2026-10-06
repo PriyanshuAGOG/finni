@@ -9,7 +9,7 @@ import {
 } from '../../src/services/taxonomy';
 import { requestConfirmation, confirmAction } from '../../src/services/confirmation';
 import { createManualSource } from '../../src/services/ingestion';
-import { updateSourceTaxonomy } from '../../src/services/source';
+import { withOrg } from '../../src/lib/db';
 
 let org: TestOrg;
 
@@ -87,7 +87,17 @@ describe('category merge', () => {
       title: 'Source for merge test',
       text: 'Text long enough for this taxonomy merge test to pass validation checks.',
     });
-    await updateSourceTaxonomy(org.adminCtx, doc.source_id, { addCategoryIds: [source1.id] });
+    // Category assignment is automatic in production (knowledge-category.ts
+    // picks from the four canonical categories); this test is about the
+    // merge mechanics moving an existing assignment, so it sets one up
+    // directly rather than through the now-blocked manual-assignment path.
+    await withOrg(org.organizationId, (sql) =>
+      sql.query(
+        `INSERT INTO source_categories (source_id, category_id, assignment_source, approved, assigned_by)
+         VALUES ($1, $2, 'human', true, $3)`,
+        [doc.source_id, source1.id, org.adminCtx.userId],
+      ),
+    );
 
     const preview = await previewCategoryMerge(org.adminCtx, {
       sourceCategoryIds: [source1.id, source2.id],

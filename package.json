@@ -18,6 +18,7 @@
     "db:list-api-clients": "tsx scripts/list-api-clients.ts",
     "db:seed-categories": "tsx scripts/seed-categories.ts",
     "db:reclassify-sources": "tsx scripts/reclassify-sources.ts",
+    "db:diagnose-sources": "tsx scripts/diagnose-sources.ts",
     "docs:generate": "tsx scripts/generate-docs.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -25,6 +26,7 @@
     "eval:retrieval": "tsx scripts/eval-retrieval.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@mozilla/readability": "^0.5.0",
     "jsdom": "^25.0.1",
     "next": "^15.1.6",

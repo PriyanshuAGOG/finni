@@ -14,6 +14,7 @@ import { recordAudit } from './audit';
 import { guardConfirmation } from './confirmation';
 import { refreshTagUsage, upsertTag } from './taxonomy';
 import { decodeCursor, encodeCursor } from './audit';
+import { normalizeSourceType, type SourceType } from '../domain/source-type';
 
 export interface SourceSummary {
   id: string;
@@ -363,7 +364,11 @@ export async function listSources(
       where.push(`s.processing_status = ANY(${add(query.processingStatus)}::processing_status[])`);
     }
     if (query.sourceType?.length) {
-      where.push(`s.source_type = ANY(${add(query.sourceType)}::source_type[])`);
+      // Caller-supplied values (a GPT guessing "article") are normalized
+      // the same way ingestion normalizes them on write, so filtering by
+      // an alias still matches what's actually stored.
+      const normalizedTypes = [...new Set(query.sourceType.map((t) => normalizeSourceType(t)))];
+      where.push(`s.source_type = ANY(${add(normalizedTypes)}::source_type[])`);
     }
     if (query.categoryId) {
       where.push(
@@ -651,11 +656,23 @@ export async function updateSource(
     for (const [field, value] of Object.entries(updates)) {
       if (value === undefined) continue;
       previous[field] = existing[field];
-      next[field] = value;
-      if (JSON_FIELDS.has(field)) sets.push(`${field} = ${add(JSON.stringify(value))}`);
-      else if (field === 'source_type') sets.push(`${field} = ${add(value)}::source_type`);
-      else if (field === 'visibility') sets.push(`${field} = ${add(value)}::visibility_level`);
-      else sets.push(`${field} = ${add(value)}`);
+      if (JSON_FIELDS.has(field)) {
+        next[field] = value;
+        sets.push(`${field} = ${add(JSON.stringify(value))}`);
+      } else if (field === 'source_type') {
+        // A caller-supplied type (a GPT guessing "article") is normalized
+        // the same way ingestion normalizes it, rather than crashing the
+        // whole update on an unrecognized enum value.
+        const normalized = normalizeSourceType(value as string, existing.source_type as SourceType);
+        next[field] = normalized;
+        sets.push(`${field} = ${add(normalized)}::source_type`);
+      } else if (field === 'visibility') {
+        next[field] = value;
+        sets.push(`${field} = ${add(value)}::visibility_level`);
+      } else {
+        next[field] = value;
+        sets.push(`${field} = ${add(value)}`);
+      }
     }
 
     if (sets.length === 0) return withDashboardUrl(existing);

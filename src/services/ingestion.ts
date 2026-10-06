@@ -30,6 +30,7 @@ import { enqueue, ENRICHMENT_STAGES } from './processing';
 import { upsertTag, refreshTagUsage } from './taxonomy';
 import { assignCanonicalKnowledgeCategory } from './knowledge-category';
 import { findDuplicates, withDashboardUrl, type DuplicateMatch } from './source';
+import { normalizeSourceType } from '../domain/source-type';
 
 export type DuplicateBehavior =
   | 'warn'
@@ -456,6 +457,7 @@ async function createFromExtraction(
     }
 
     const priorityValue = input.priority === 'high' ? 10 : input.priority === 'low' ? 200 : 100;
+    const sourceType = normalizeSourceType(extraction.sourceTypeHint);
 
     const row = await sql.one<{ id: string; title: string }>(
       `INSERT INTO sources (
@@ -478,7 +480,7 @@ async function createFromExtraction(
         ctx.organizationId,
         truncate(extraction.title, 500),
         extraction.subtitle ? truncate(extraction.subtitle, 500) : null,
-        extraction.sourceTypeHint ?? 'other',
+        sourceType,
         extraction.canonicalUrl ? safeNormalize(extraction.canonicalUrl) : input.submittedUrl,
         input.submittedUrl,
         extraction.doi,
@@ -630,7 +632,7 @@ async function createFromExtraction(
         title: extraction.title,
         canonical_url: extraction.canonicalUrl,
         submitted_url: input.submittedUrl,
-        source_type: extraction.sourceTypeHint,
+        source_type: sourceType,
         duplicate_status: strongest ? strongest.kind : 'none',
         review_status: 'approved',
       },

@@ -1,6 +1,33 @@
-# Custom GPT Setup Guide
+# Research Assistant Setup Guide (MCP)
 
-This walks through connecting the Nirog Bhoomi Research Assistant Custom GPT to a running deployment of the Research OS.
+OpenAI stopped allowing new Custom GPTs on 2026-09-25 and is retiring them entirely on 2026-12-11, replaced by Apps built on the Model Context Protocol (MCP). A Custom GPT that gets auto-migrated becomes a **skills-only app with no working connection at all** -- Actions do not carry over. This guide covers connecting to the **MCP server at `/mcp`**, which replaces the old OpenAPI Actions integration entirely.
+
+If you are still on an un-migrated Custom GPT and need the legacy Actions setup, see "Appendix: legacy Custom GPT Actions" at the end of this file -- but note it stops working once OpenAI migrates or retires the GPT.
+
+## 0. Connect the MCP server in ChatGPT
+
+1. In ChatGPT: **Settings -> Connectors -> Create -> Add an MCP server** (or, inside an App/GPT editor, **Configure -> Model Context Protocol**).
+2. **Server URL**: `https://<your-deployment>/mcp` (not `localhost`, not the `research.nirogbhoomi.com` placeholder -- see the warning in step 3 of the Actions appendix, which applies here too).
+3. **Authentication**: choose one --
+   - **OAuth** (recommended beyond a personal prototype): ChatGPT discovers the authorization server automatically from `/.well-known/oauth-protected-resource/mcp` and `/.well-known/oauth-authorization-server`, then **self-registers** via `POST /api/oauth/register` (RFC 7591) -- there is no Client ID/Secret to create or paste by hand, unlike the legacy Actions flow in the Appendix. The first time you connect, you'll be bounced to `/sign-in` to authenticate as yourself; the resulting access token can only ever do what your own account can do, no matter what the connector requested.
+   - **API key**: paste a `nbgpt_...` key from `createApiClient`, exactly as in Path B of the Appendix. Same credential, same scopes, same risk notes.
+4. ChatGPT calls `tools/list` on connect and shows the 27 tools from `CORE_GPT_ACTIONS` (`src/domain/core-gpt-actions.ts`) -- the same curated set the old Actions schema exposed, now shared by both surfaces so they can never drift apart. There is no 30-operation cap on MCP, but the set stays curated rather than exposing the full internal registry.
+5. Paste `docs/gpt-instructions.md` into the App/GPT's instructions, exactly as before.
+6. Work through the Appendix's "Test in GPT Preview" checklist (step 5) using MCP tool calls instead of Actions calls -- the tool names, inputs and outputs are identical.
+
+To change which operations are exposed, edit `CORE_GPT_ACTIONS` in `src/domain/core-gpt-actions.ts` (one list now feeds both `openapi/gpt-actions.yaml` and `/mcp`) and re-run `npm run openapi:generate`.
+
+### If the connection fails
+
+- A 401 with no body reaching ChatGPT at all means the request never arrived -- check the server URL and deployment reachability first (`curl -i https://<your-domain>/mcp`), same as the Actions appendix's step 7.
+- A 401 **with** a `WWW-Authenticate: Bearer resource_metadata="..."` header reaching ChatGPT means the server is up but rejected the credential -- check the OAuth client or API key, not the deployment.
+- The dashboard's `/errors` page shows every 5xx the MCP endpoint raised, same as for `/api/v1`.
+
+---
+
+# Appendix: legacy Custom GPT Actions
+
+This section is retained for deployments still running an un-migrated Custom GPT. Follow it only if you are not yet on the MCP connector above.
 
 ## 1. Prerequisites
 

@@ -6,6 +6,7 @@ import { normalizeTaxonomyName, slugify, truncate } from '../lib/text';
 import { recordAudit, decodeCursor, encodeCursor } from './audit';
 import { guardConfirmation } from './confirmation';
 import { uniqueSlug } from './taxonomy';
+import { normalizeSourceType } from '../domain/source-type';
 
 export interface Collection {
   id: string;
@@ -682,7 +683,8 @@ export async function refreshSmartCollection(
       where.push(`s.review_status = ANY(${add(r.review_status)}::review_status[])`);
     }
     if (Array.isArray(r.source_types) && r.source_types.length > 0) {
-      where.push(`s.source_type = ANY(${add(r.source_types)}::source_type[])`);
+      const normalizedTypes = [...new Set(r.source_types.map((t) => normalizeSourceType(t as string)))];
+      where.push(`s.source_type = ANY(${add(normalizedTypes)}::source_type[])`);
     }
     if (typeof r.published_after === 'string') {
       where.push(`s.publication_date >= ${add(r.published_after)}`);

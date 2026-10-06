@@ -19,6 +19,7 @@ import { externalSearch } from '../extraction/external-search';
 import { buildSearchQueries } from '../services/research';
 import type { ProcessingJob } from '../services/processing';
 import { markJobProgress } from '../services/processing';
+import { normalizeSourceType } from '../domain/source-type';
 
 export interface HandlerResult {
   output: Record<string, unknown>;
@@ -700,7 +701,7 @@ const researchJob: Handler = async (job, ctx) => {
           truncate(hit.title, 500),
           hit.publisher,
           hit.publicationDate,
-          hit.sourceTypeHint ?? 'other',
+          normalizeSourceType(hit.sourceTypeHint),
           hit.studyDesign,
           hit.snippet ? truncate(hit.snippet, 2000) : null,
           hit.relevanceReason,
