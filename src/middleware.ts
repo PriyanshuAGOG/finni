@@ -14,6 +14,8 @@ const PUBLIC_PATHS = [
   '/accept-invite',
   '/gpt-actions.yaml',
   '/api',
+  '/mcp',
+  '/.well-known',
   '/_next',
   '/favicon.ico',
 ];
