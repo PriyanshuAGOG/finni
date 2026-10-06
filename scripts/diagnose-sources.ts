@@ -49,6 +49,20 @@ async function main() {
         `${counts?.archived ?? 0} archived, ${counts?.deleted ?? 0} deleted)`,
     );
 
+    const otherCounts = await withOrg(org.id, (sql) =>
+      sql.one<{ categories: number; claims: number; collections: number; processing_jobs: number }>(
+        `SELECT
+           (SELECT count(*) FROM categories)::int AS categories,
+           (SELECT count(*) FROM claims)::int AS claims,
+           (SELECT count(*) FROM collections)::int AS collections,
+           (SELECT count(*) FROM processing_jobs)::int AS processing_jobs`,
+      ),
+    );
+    console.log(
+      `  Other tables: ${otherCounts?.categories ?? 0} categories, ${otherCounts?.claims ?? 0} claims, ` +
+        `${otherCounts?.collections ?? 0} collections, ${otherCounts?.processing_jobs ?? 0} processing_jobs`,
+    );
+
     const recent = await withOrg(org.id, (sql) =>
       sql.query<{ title: string; created_at: string; status: string }>(
         `SELECT title, created_at, status FROM sources ORDER BY created_at DESC LIMIT 10`,
@@ -80,6 +94,31 @@ async function main() {
         `(earliest ${auditSummary?.earliest ?? 'n/a'}, latest ${auditSummary?.latest ?? 'n/a'}), ` +
         `${auditSummary?.source_created ?? 0} were 'source.created'`,
     );
+
+    if ((auditSummary?.total ?? 0) > 0 && (auditSummary?.total ?? 0) <= 20) {
+      const events = await withOrg(org.id, (sql) =>
+        sql.query<{
+          action: string;
+          resource_type: string;
+          actor_type: string;
+          actor_name: string | null;
+          source_interface: string;
+          created_at: string;
+        }>(
+          `SELECT a.action, a.resource_type, a.actor_type, u.full_name AS actor_name,
+                  a.source_interface, a.created_at
+           FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id
+           ORDER BY a.created_at`,
+        ),
+      );
+      console.log('  All audit events (table is small enough to show in full):');
+      for (const e of events) {
+        console.log(
+          `    - [${e.created_at}] ${e.action} on ${e.resource_type} ` +
+            `by ${e.actor_name ?? e.actor_type} via ${e.source_interface}`,
+        );
+      }
+    }
   }
 
   console.log('\nRecent server errors (last 20, any organization):');
